@@ -14,8 +14,8 @@ class SK(nn.Module):
 
 if __name__ == '__main__':
     import torch
-    net = SK(n_class=4)
-    data = torch.randn((1, 1024, 320))
+    net = SK(n_class=2)
+    data = torch.randn((1, 1024, 128))
     out = net(data)
-    print(out.shape)
-    print(out[:, :, 1:10])
+    import numpy as np
+    print(np.array(out.cpu().data[0]))

@@ -301,5 +301,5 @@ class _FCSN(nn.Module):
 if __name__ == '__main__':
     import torch
     net = FCSN()
-    data = torch.randn((1, 1024, 320))
+    data = torch.randn((2, 1024, 320))
     print(net(data).shape)

@@ -12,7 +12,7 @@ cd $RawVideo
 
 tvsum="tvsum.tgz"
 summe="summe.zip"
-youtube="youtube.tar.gz"
+# youtube="youtube.tar.gz"
 
 datasets=(
     "tvsum.tgz"

@@ -38,6 +38,8 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
     '''
     video = cv2.VideoCapture(video_path)
     n_frame = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = video.get(cv2.CAP_PROP_FPS)
+
 
     # sample shape is [n, c, d,d]
     samples = np.zeros(
@@ -66,7 +68,7 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
                 samples[i, j, :, :] = frame[:, :, j]
 
     video.release()
-    return samples, selected
+    return samples, selected, n_frame, fps
 
 
 def feature_scaling(arr):
@@ -92,15 +94,26 @@ def downsample_gt(gt, indeces):
         indeces: list()
     '''
 
-    n_frames = len(indeces)
-    n_users = gt.shape[1]
-    down_gt = np.zeros((n_frames, n_users))
+    n_frame = len(indeces)
+    n_user = gt.shape[1]
+    down_gt = np.zeros((n_frame, n_user))
 
-    for i in range(n_users):
-        for j in range(n_frames):
+    for i in range(n_user):
+        for j in range(n_frame):
             down_gt[j, i] = gt[indeces[j], i]
     return down_gt
 
+def seg_video(cps, n_frames):
+    '''
+        convert the cps in the form of [cp_s, cp_e]
+    '''
+    # cps = [0] + np.tolist() + [n_frames]
+
+    # for i in range(len(cps)-1):
+
+
+    # print(cps)
+    return 0
 
 def gen_summe():
     '''
@@ -150,7 +163,10 @@ def gen_summe():
         vid_group['video_name'] = np.string_(vid_name)
 
         # downsample the video and gts
-        samples, indeces = downsample_video(video_path, 320, 'summe {}'.format(vid_name))
+        samples, indeces, n_frame, fps = downsample_video(video_path, 320, 'summe {}'.format(vid_name))
+        vid_group['picks'] = np.array(indeces)
+        vid_group['fps'] = fps
+        vid_group['n_frame'] = n_frame
 
         # _test_samples(samples)
         vid_group['gt_score'] = downsample_gt(gt_scores, indeces)
@@ -164,7 +180,12 @@ def gen_summe():
 
         # run kts
         K = np.dot(features, features.T)
-        cps = cpd_auto
+        ncp = int(int(n_frame//fps)//4)
+        cps,_ = cpd_auto(K, ncp, 1)
+
+
+        print(len(cps))
+        
 
         # d
         break

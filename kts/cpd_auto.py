@@ -37,7 +37,7 @@ def cpd_auto(K, ncp, vmax, desc_rate=1, **kwargs):
 
     N = K.shape[0]
     N2 = N*desc_rate  # length of the video before subsampling
-
+    
     penalties = np.zeros(m+1)
     # Prevent division by zero (in case of 0 changes)
     ncp = np.arange(1, m+1)

@@ -7,5 +7,6 @@ venv/
 # Dataset
 FeatureVectors/
 RawVideos/
+generated_data/
 
 

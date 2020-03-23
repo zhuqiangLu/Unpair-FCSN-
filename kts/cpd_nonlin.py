@@ -5,7 +5,7 @@ All credit goes to the original author
 '''
 
 import numpy as np
-from scipy import weave
+#from scipy import weave
 
 
 def calc_scatters(K):
@@ -21,15 +21,20 @@ def calc_scatters(K):
 
     scatters = np.zeros((n, n))
 
-    code = r"""
-    for (int i = 0; i < n; i++) {
-        for (int j = i; j < n; j++) {
-            scatters(i,j) = K1(j+1)-K1(i) - (K2(j+1,j+1)+K2(i,i)-K2(j+1,i)-K2(i,j+1))/(j-i+1);
-        }
-    }
-    """
-    weave.inline(code, ['K1', 'K2', 'scatters', 'n'], global_dict={
-                 'K1': K1, 'K2': K2, 'scatters': scatters, 'n': n}, type_converters=weave.converters.blitz)
+    for i in range(n):
+        for j in range(i, n):
+            scatters[i][j] = K1[j+1]-K1[i] - \
+                (K2[j+1][j+1]+K2[i, i]-K2[j+1, i]-K2[i, j+1])/(j-i+1)
+
+    # code = r"""
+    # for (int i = 0; i < n; i++) {
+    #     for (int j = i; j < n; j++) {
+    #         scatters(i,j) = K1(j+1)-K1(i) - (K2(j+1,j+1)+K2(i,i)-K2(j+1,i)-K2(i,j+1))/(j-i+1);
+    #     }
+    # }
+    # """
+    # weave.inline(code, ['K1', 'K2', 'scatters', 'n'], global_dict={
+    #              'K1': K1, 'K2': K2, 'scatters': scatters, 'n': n}, type_converters=weave.converters.blitz)
 
     return scatters
 
@@ -77,28 +82,37 @@ def cpd_nonlin(K, ncp, lmin=1, lmax=100000, backtrack=True, verbose=True,
     else:
         p = np.zeros((1, 1), dtype=int)
 
-    code = r"""
-    #define max(x,y) ((x)>(y)?(x):(y))
-    for (int k=1; k<m+1; k++) {
-        for (int l=(k+1)*lmin; l<n+1; l++) {
-            I(k, l) = 1e100; //nearly infinity
-            for (int t=max(k*lmin,l-lmax); t<l-lmin+1; t++) {
-                double c = I(k-1, t) + J(t, l-1);
-                if (c < I(k, l)) {
-                    I(k, l) = c;
-                    if (backtrack == 1) {
-                        p(k, l) = t;
-                    }
-                }
-            }
-        }
-    }
-    """
+    for k in range(1, m+1):
+        for l in range((k+1)*lmin, n+1):
+            tmin = max(k*lmin, l-lmax)
+            tmax = l-lmin+1
+            c = J[tmin:tmax, l-1].reshape(-1) + I[k-1, tmin:tmax].reshape(-1)
+            I[k, l] = np.min(c)
+            if backtrack:
+                p[k, l] = np.argmin(c)+tmin
 
-    weave.inline(code, ['m', 'n', 'p', 'I', 'J', 'lmin', 'lmax', 'backtrack'],
-                 global_dict={'m': m, 'n': n, 'p': p, 'I': I, 'J': J,
-                              'lmin': lmin, 'lmax': lmax, 'backtrack': int(1) if backtrack else int(0)},
-                 type_converters=weave.converters.blitz)
+    # code = r"""
+    # #define max(x,y) ((x)>(y)?(x):(y))
+    # for (int k=1; k<m+1; k++) {
+    #     for (int l=(k+1)*lmin; l<n+1; l++) {
+    #         I(k, l) = 1e100; //nearly infinity
+    #         for (int t=max(k*lmin,l-lmax); t<l-lmin+1; t++) {
+    #             double c = I(k-1, t) + J(t, l-1);
+    #             if (c < I(k, l)) {
+    #                 I(k, l) = c;
+    #                 if (backtrack == 1) {
+    #                     p(k, l) = t;
+    #                 }
+    #             }
+    #         }
+    #     }
+    # }
+    # """
+
+    # weave.inline(code, ['m', 'n', 'p', 'I', 'J', 'lmin', 'lmax', 'backtrack'],
+    #              global_dict={'m': m, 'n': n, 'p': p, 'I': I, 'J': J,
+    #                           'lmin': lmin, 'lmax': lmax, 'backtrack': int(1) if backtrack else int(0)},
+    #              type_converters=weave.converters.blitz)
 
     # Collect change points
     cps = np.zeros(m, dtype=int)

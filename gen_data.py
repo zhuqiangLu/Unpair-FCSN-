@@ -5,10 +5,15 @@ from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 import h5py
 import scipy.io
 import os
-
+import torch
 from FeatureExtractor import FeatureExtractor
 from cpd_auto import cpd_auto
+from tqdm import tqdm, trange
 
+'''
+GLOBAL variables
+'''
+feature_extractor = FeatureExtractor()
 
 def _test_samples(samples):
     '''
@@ -27,7 +32,7 @@ def _test_samples(samples):
     writer.release()
 
 
-def downsample_video(video_path, n_sample, image_shape=(224, 224)):
+def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 224)):
     '''
         sample T frame from the video
     '''
@@ -40,22 +45,25 @@ def downsample_video(video_path, n_sample, image_shape=(224, 224)):
 
     # record the selected frames to select gt
     selected = list()
-    for i in range(n_sample):
-        target_frame = int(i * (n_frame / n_sample))
+    with trange(n_sample) as t:
+        for i in t:
+            target_frame = int(i * (n_frame / n_sample))
 
-        selected.append(target_frame)
+            t.set_description(bar_descrip)
+            
+            selected.append(target_frame)
 
-        # jump to the desire frame and read
-        video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-        _, frame = video.read()
+            # jump to the desire frame and read
+            video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            _, frame = video.read()
 
-        # resize
-        # frame shape is [d,d,c]
-        frame = resize(frame, image_shape)
+            # resize
+            # frame shape is [d,d,c]
+            frame = resize(frame, image_shape)
 
-        # reshape to [c, d,d] and stack to sample
-        for j in range(frame.shape[-1]):
-            samples[i, j, :, :] = frame[:, :, j]
+            # reshape to [c, d,d] and stack to sample
+            for j in range(frame.shape[-1]):
+                samples[i, j, :, :] = frame[:, :, j]
 
     video.release()
     return samples, selected
@@ -108,6 +116,10 @@ def gen_summe():
     vid_path = os.path.join(cur, 'RawVideos/summe/videos')
     gt_path = os.path.join(cur, 'RawVideos/summe/GT')
 
+    # create generated_data dir
+    if not os.path.exists(gen_path):
+        os.mkdir(gen_path)
+
     # init save h5
     save_h5 = h5py.File(save_path, 'w')
 
@@ -138,14 +150,21 @@ def gen_summe():
         vid_group['video_name'] = np.string_(vid_name)
 
         # downsample the video and gts
-        samples, indeces = downsample_video(video_path, 320)
+        samples, indeces = downsample_video(video_path, 320, 'summe {}'.format(vid_name))
 
         # _test_samples(samples)
         vid_group['gt_score'] = downsample_gt(gt_scores, indeces)
         vid_group['user_score'] = downsample_gt(user_score_rescale, indeces)
 
         # extract feature
-        vid_group['features'] = FeatureExtractor(samples)
+
+        features = feature_extractor(torch.Tensor(samples)).cpu().data
+        
+        vid_group['features'] = features
+
+        # run kts
+        K = np.dot(features, features.T)
+        cps = cpd_auto
 
         # d
         break

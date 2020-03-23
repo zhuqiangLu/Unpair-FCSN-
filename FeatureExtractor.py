@@ -50,6 +50,7 @@ class FeatureExtractor(nn.Module):
 
 
 if __name__ == '__main__':
-    data = torch.randn((2, 3, 224, 224))
+    data = torch.randn((320, 3, 224, 224))
+    print(data.shape)
     net = FeatureExtractor()
     print(net(data).shape)

@@ -207,8 +207,7 @@ def gen_summe(T=320):
         vid_group = save_h5.create_group('video_{}'.format(counter))
 
         vid_group['video_name'] = np.string_(vid_name)
-        print(vid_name)
-
+        
         # downsample the video and gts
         down_video, picks, n_frame, fps = downsample_video(video_path, T, 'summe {}'.format(vid_name))
         #_test_samples(down_video, fps)
@@ -220,7 +219,7 @@ def gen_summe(T=320):
         # _test_samples(samples)
         vid_group['gt_score'] = downsample_gt(gt_scores, picks)
         vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
-
+        
         # extract feature
         #features = feature_extractor(torch.Tensor(down_video)).cpu().data #[C, N]
         features  = get_features(down_video)

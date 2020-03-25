@@ -25,8 +25,8 @@ class FeatureExtractor(nn.Module):
         self.googlenet.eval()
 
         # # we only want features no grads
-        # for param in self.googlenet.parameters():
-        #     param.requires_grad = False
+        for param in self.googlenet.parameters():
+            param.requires_grad = False
 
         # feature extractor
         self.model = nn.Sequential(*list(self.googlenet.children())[:-2])

@@ -15,13 +15,13 @@ GLOBAL variables
 '''
 feature_extractor = FeatureExtractor()
 
-def _test_samples(samples):
+def _test_samples(samples, fps):
     '''
         write the sample in a form of video
     '''
     print('start restoring sample')
     writer = cv2.VideoWriter(
-        './test.mp4', VideoWriter_fourcc(*'MP4V'), 10, (224, 224))
+        './test.mp4', VideoWriter_fourcc(*'MP4V'), fps, (224, 224))
     for i in range(samples.shape[0]):
         # reshape the image
         frame = np.zeros((224, 224, 3), dtype=np.uint8)
@@ -43,12 +43,12 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
 
     # sample shape is [n, c, d,d]
     down_video = np.zeros(
-        (n_sample, 3, image_shape[0], image_shape[1]), dtype=np.uint8)
+        (n_frame, 3, image_shape[0], image_shape[1]), dtype=np.uint8)
 
     # record the selected frames to select gt
     picks = [int(i * (n_frame / n_sample)) for i in range(n_sample)]
     
-    with trange(n_frames) as t:
+    with trange(n_frame) as t:
         for i in t:
             target_frame = int(i * (n_frame / n_sample))
 
@@ -68,20 +68,19 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
 
     return down_video, picks, n_frame, fps
 
-def down_feature(feature, picks):
+def down_features(features, picks):
     '''
         donw sample the feature vector
-        feature: [n, c]
+        feature: [c, n]
     '''
     n_sample = len(picks)
-    n_channel = feature.shape[1]
-    down_feature = np.zeros((n_sample, n_channel), dytpe=feature.dtype)
-
+    n_channel = features.shape[0]
+    down_features = np.zeros((n_channel, n_sample), dtype=features.dtype)
     for i in range(n_sample):
-
-        down_feature[picks(i),:] = feature[picks(i),:]
+       
+        down_features[:,i] = features[:,picks[i]]
     
-    return down_feature
+    return down_features
 
 
 
@@ -117,24 +116,52 @@ def downsample_gt(gt, indeces):
             down_gt[j, i] = gt[indeces[j], i]
     return down_gt
 
-def segment_video(feature, n_frame, fps):
+def segment_video(features, n_frame, fps):
 
-    K = np.dot(features, features.T) # K -> [N, N]
-    ncp = int(int(n_frame//fps)//4)
-    cps,_ = cpd_auto(K, ncp, 1) # cps is a (n_cps,) np array
-
+    K = np.dot(features.T, features) # K -> [N, N]
+    ncp = int(int(n_frame//fps))
+    print(ncp)
+    ncp =30
+    cps,cost = cpd_auto(K, ncp, 1) # cps is a (n_cps,) np array
+    print(cps)
+    
     #reform the cps as cps[i] = (cp_start, cp_end)
     cps = [0]+ cps.tolist() + [n_frame]
     n_seg = len(cps)-1
     reform_cps = np.zeros((n_seg, 2), dtype=np.uint8)
-    n_frame_per_seg = list
+    n_frame_per_seg = list()
     for i in range(n_seg):
         reform_cps[i,:] = np.array([cps[i], cps[i+1]-1])
         n_frame_per_seg.append(cps[i+1]-cps[i])
 
     return reform_cps, n_frame_per_seg
 
-def gen_summe():
+
+def get_features(video,C=1024, T=320):
+    '''
+        to handle the case the exceeding max gpu memory
+        video: [n, c, d,d]
+    '''
+    n_frame = video.shape[0]
+    n_frame_per_run = 1000
+    n_iter = n_frame//n_frame_per_run
+    s = 0
+    features = None
+    for i in range(n_iter):
+        in_tensor = torch.Tensor(video[s:s+n_frame_per_run,:,:,:])
+        out = feature_extractor(in_tensor).cpu().data.numpy()
+        if features is None:
+            features = out
+        else:
+            features = np.concatenate((features, out), axis=1)
+        s+=n_frame_per_run
+    in_tensor = torch.Tensor(video[s:,:,:,:])
+    out = feature_extractor(in_tensor).cpu().data
+    features = np.concatenate((features, out), axis=1)
+    return features
+
+
+def gen_summe(T=320):
     '''
         assume exists
             ./generated_data 
@@ -180,9 +207,12 @@ def gen_summe():
         vid_group = save_h5.create_group('video_{}'.format(counter))
 
         vid_group['video_name'] = np.string_(vid_name)
+        print(vid_name)
 
         # downsample the video and gts
-        down_video, picks, n_frame, fps = downsample_video(video_path, 320, 'summe {}'.format(vid_name))
+        down_video, picks, n_frame, fps = downsample_video(video_path, T, 'summe {}'.format(vid_name))
+        #_test_samples(down_video, fps)
+        
         vid_group['picks'] = np.array(picks)
         vid_group['fps'] = fps
         vid_group['n_frame'] = n_frame
@@ -192,14 +222,17 @@ def gen_summe():
         vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
 
         # extract feature
-        features = feature_extractor(torch.Tensor(down_video)).cpu().data #[N, C]
-        vid_group['features'] = down_feature(feature, picks)
+        #features = feature_extractor(torch.Tensor(down_video)).cpu().data #[C, N]
+        features  = get_features(down_video)
+        
+
+        vid_group['features'] = down_features(features, picks)
         
         # segment video using feature vector
-        cps, n_frame_per_seg = segment_video(feature, n_frame, fps)
-        vid_group['cps'] =cps
-        vid_groupp['n_frame_per_seg'] = n_frame_per_seg
-        print(cps)
+        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+        vid_group['change_points'] =cps
+        vid_group['n_frame_per_seg'] = n_frame_per_seg
+        
         # d
         break
         counter += 1
@@ -219,6 +252,7 @@ if __name__ == "__main__":
     # video_path = os.path.join(video_dir, fnames[0])
     # print(video_path)
     gen_summe()
+    #print(get_features(np.zeros((4473, 3, 224,224))).shape)#should be (1024,4473)
 
     # test for downsample
     # a = np.random.randint(1, 10, (10, 2))

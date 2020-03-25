@@ -24,9 +24,9 @@ class FeatureExtractor(nn.Module):
         # use eval mode to do feature extraction
         self.googlenet.eval()
 
-        # we only want features no grads
-        for param in self.googlenet.parameters():
-            param.requires_grad = False
+        # # we only want features no grads
+        # for param in self.googlenet.parameters():
+        #     param.requires_grad = False
 
         # feature extractor
         self.model = nn.Sequential(*list(self.googlenet.children())[:-2])
@@ -52,4 +52,9 @@ if __name__ == '__main__':
     data = torch.randn((320, 3, 224, 224))
     print(data.shape)
     net = FeatureExtractor()
-    print(net(data).shape)
+    out1= net(data).cpu().data
+    data = torch.randn((320, 3, 224, 224))
+    out2 = net(data).cpu().data
+    import numpy as np
+    print(np.concatenate((out1, out2), axis=1).shape)
+

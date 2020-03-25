@@ -42,22 +42,19 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
 
 
     # sample shape is [n, c, d,d]
-    samples = np.zeros(
+    down_video = np.zeros(
         (n_sample, 3, image_shape[0], image_shape[1]), dtype=np.uint8)
 
     # record the selected frames to select gt
-    selected = list()
-    with trange(n_sample) as t:
+    picks = [int(i * (n_frame / n_sample)) for i in range(n_sample)]
+    
+    with trange(n_frames) as t:
         for i in t:
             target_frame = int(i * (n_frame / n_sample))
 
             t.set_description(bar_descrip)
-            
-            selected.append(target_frame)
 
-            # jump to the desire frame and read
-            video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-            _, frame = video.read()
+            _,frame = video.read()
 
             # resize
             # frame shape is [d,d,c]
@@ -65,10 +62,27 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
 
             # reshape to [c, d,d] and stack to sample
             for j in range(frame.shape[-1]):
-                samples[i, j, :, :] = frame[:, :, j]
+                down_video[i, j, :, :] = frame[:, :, j]
 
     video.release()
-    return samples, selected, n_frame, fps
+
+    return down_video, picks, n_frame, fps
+
+def down_feature(feature, picks):
+    '''
+        donw sample the feature vector
+        feature: [n, c]
+    '''
+    n_sample = len(picks)
+    n_channel = feature.shape[1]
+    down_feature = np.zeros((n_sample, n_channel), dytpe=feature.dtype)
+
+    for i in range(n_sample):
+
+        down_feature[picks(i),:] = feature[picks(i),:]
+    
+    return down_feature
+
 
 
 def feature_scaling(arr):
@@ -103,17 +117,22 @@ def downsample_gt(gt, indeces):
             down_gt[j, i] = gt[indeces[j], i]
     return down_gt
 
-def seg_video(cps, n_frames):
-    '''
-        convert the cps in the form of [cp_s, cp_e]
-    '''
-    # cps = [0] + np.tolist() + [n_frames]
+def segment_video(feature, n_frame, fps):
 
-    # for i in range(len(cps)-1):
+    K = np.dot(features, features.T) # K -> [N, N]
+    ncp = int(int(n_frame//fps)//4)
+    cps,_ = cpd_auto(K, ncp, 1) # cps is a (n_cps,) np array
 
+    #reform the cps as cps[i] = (cp_start, cp_end)
+    cps = [0]+ cps.tolist() + [n_frame]
+    n_seg = len(cps)-1
+    reform_cps = np.zeros((n_seg, 2), dtype=np.uint8)
+    n_frame_per_seg = list
+    for i in range(n_seg):
+        reform_cps[i,:] = np.array([cps[i], cps[i+1]-1])
+        n_frame_per_seg.append(cps[i+1]-cps[i])
 
-    # print(cps)
-    return 0
+    return reform_cps, n_frame_per_seg
 
 def gen_summe():
     '''
@@ -163,33 +182,26 @@ def gen_summe():
         vid_group['video_name'] = np.string_(vid_name)
 
         # downsample the video and gts
-        samples, indeces, n_frame, fps = downsample_video(video_path, 320, 'summe {}'.format(vid_name))
-        vid_group['picks'] = np.array(indeces)
+        down_video, picks, n_frame, fps = downsample_video(video_path, 320, 'summe {}'.format(vid_name))
+        vid_group['picks'] = np.array(picks)
         vid_group['fps'] = fps
         vid_group['n_frame'] = n_frame
 
         # _test_samples(samples)
-        vid_group['gt_score'] = downsample_gt(gt_scores, indeces)
-        vid_group['user_score'] = downsample_gt(user_score_rescale, indeces)
+        vid_group['gt_score'] = downsample_gt(gt_scores, picks)
+        vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
 
         # extract feature
-
-        features = feature_extractor(torch.Tensor(samples)).cpu().data
+        features = feature_extractor(torch.Tensor(down_video)).cpu().data #[N, C]
+        vid_group['features'] = down_feature(feature, picks)
         
-        vid_group['features'] = features
-
-        # run kts
-        K = np.dot(features, features.T)
-        ncp = int(int(n_frame//fps)//4)
-        cps,_ = cpd_auto(K, ncp, 1)
-
-
-        print(len(cps))
-        
-
+        # segment video using feature vector
+        cps, n_frame_per_seg = segment_video(feature, n_frame, fps)
+        vid_group['cps'] =cps
+        vid_groupp['n_frame_per_seg'] = n_frame_per_seg
+        print(cps)
         # d
         break
-
         counter += 1
 
 

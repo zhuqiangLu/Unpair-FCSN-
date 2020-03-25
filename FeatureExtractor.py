@@ -8,7 +8,6 @@ the origin code: https://github.com/pcshih/pytorch-VSLUD/blob/master/training_se
 import torchvision
 import torch.nn as nn
 import torch
-import cpd_auto
 
 
 class FeatureExtractor(nn.Module):

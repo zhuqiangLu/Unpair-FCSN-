@@ -6,6 +6,8 @@ import h5py
 import scipy.io
 import os
 import torch
+from PIL import Image
+from torchvision import models, transforms
 from FeatureExtractor import FeatureExtractor
 from cpd_auto import cpd_auto
 from tqdm import tqdm, trange
@@ -32,7 +34,7 @@ def _test_samples(samples, fps):
     writer.release()
 
 
-def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 224)):
+def video_to_feature(video_path, n_sample, bar_descrip='test',image_shape=(224, 224)):
     '''
         sample T frame from the video
     '''
@@ -40,7 +42,13 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
     n_frame = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = video.get(cv2.CAP_PROP_FPS)
 
-
+    #normalize, rescale and everything
+    preprocessor = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ])
     # sample shape is [n, c, d,d]
     down_video = np.zeros(
         (n_frame, 3, image_shape[0], image_shape[1]), dtype=np.uint8)
@@ -55,7 +63,14 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
             t.set_description(bar_descrip)
 
             _,frame = video.read()
-
+            
+            
+            #image = Image.fromarray(frame).resize((image_shape), resample=Image.BILINEAR)
+            image = preprocessor(Image.fromarray(frame)).unsqueeze(0)
+            
+            feature = feature_extractor(image)
+            print(feature.shape)
+            break
             # resize
             # frame shape is [d,d,c]
             frame = resize(frame, image_shape)
@@ -66,7 +81,7 @@ def downsample_video(video_path, n_sample, bar_descrip='test',image_shape=(224, 
 
     video.release()
 
-    return down_video, picks, n_frame, fps
+    return feature, picks, n_frame, fps
 
 def down_features(features, picks):
     '''
@@ -209,7 +224,7 @@ def gen_summe(T=320):
         vid_group['video_name'] = np.string_(vid_name)
         
         # downsample the video and gts
-        down_video, picks, n_frame, fps = downsample_video(video_path, T, 'summe {}'.format(vid_name))
+        features, picks, n_frame, fps = video_to_feature(video_path, T, 'summe {}'.format(vid_name))
         #_test_samples(down_video, fps)
         
         vid_group['picks'] = np.array(picks)
@@ -222,15 +237,15 @@ def gen_summe(T=320):
         
         # extract feature
         #features = feature_extractor(torch.Tensor(down_video)).cpu().data #[C, N]
-        features  = get_features(down_video)
+        # features  = get_features(features)
         
 
-        vid_group['features'] = down_features(features, picks)
+        # vid_group['features'] = down_features(features, picks)
         
-        # segment video using feature vector
-        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
-        vid_group['change_points'] =cps
-        vid_group['n_frame_per_seg'] = n_frame_per_seg
+        # # segment video using feature vector
+        # cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+        # vid_group['change_points'] =cps
+        # vid_group['n_frame_per_seg'] = n_frame_per_seg
         
         # d
         break

@@ -5,7 +5,7 @@ the origin code: https://github.com/pcshih/pytorch-VSLUD/blob/master/training_se
 
 '''
 
-import torchvision
+from torchvision import models, transforms
 import torch.nn as nn
 import torch
 
@@ -20,10 +20,9 @@ class FeatureExtractor(nn.Module):
             "cuda:0" if torch.cuda.is_available() else "cpu")
 
         # torchvision0.3.0
-        self.googlenet = torchvision.models.googlenet(pretrained=True)
+        self.googlenet = models.googlenet(pretrained=True)
         # use eval mode to do feature extraction
         self.googlenet.eval()
-
         # # we only want features no grads
         for param in self.googlenet.parameters():
             param.requires_grad = False

@@ -48,12 +48,12 @@ class FeatureExtractor(nn.Module):
 
 
 if __name__ == '__main__':
-    data = torch.randn((320, 3, 224, 224))
+    data = torch.randn((1, 3, 224, 224))
     print(data.shape)
     net = FeatureExtractor()
-    out1= net(data).cpu().data
-    data = torch.randn((320, 3, 224, 224))
-    out2 = net(data).cpu().data
-    import numpy as np
-    print(np.concatenate((out1, out2), axis=1).shape)
+    out1= net(data).cpu().detach().numpy()
+    print(out1.dtype)
+    print(out1.shape)
+
+    
 

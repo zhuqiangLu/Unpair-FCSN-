@@ -47,7 +47,7 @@ class Trainer(object):
                     loss += cos(pred[0, :, i], gt[0, :, j])
         return loss/(k*(k+1))
 
-    def train_SD_real(self, fake_sum, real_sum):
+    def train_SD(self, fake_sum, real_sum):
         '''
             note that this method takes one sample at a time
 

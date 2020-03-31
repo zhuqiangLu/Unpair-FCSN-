@@ -7,3 +7,6 @@ unzip ./RawVideos/ydata-tvsum50-v1_1/'*.zip' -d ./RawVideos/tvsum/
 rm -rf ./RawVideos/ydata-tvsum50-v1_1/
 
 rm ./RawVideos/WebscopeReadMe.txt
+
+rm ./RawVideos/tvsum.tgz
+rm ./RawVideos/summe.zip

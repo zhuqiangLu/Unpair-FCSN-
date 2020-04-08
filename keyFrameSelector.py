@@ -14,6 +14,8 @@ class SK(nn.Module):
             nn.Sigmoid(),
         )
 
+        self.conv1 = nn.Conv1d(n_class, n_class, 3, padding=1)
+
     def forward(self, x):
         video_features = x
 
@@ -21,32 +23,53 @@ class SK(nn.Module):
 
         h = self._SK(x)
 
-        sk_out = h
+        sk_out = h  # sk_out is the decoded features
 
         scores = self.score_layer(h)  # shape (1,1,T)
 
         top_scores = torch.topk(scores, k, dim=-1)
         high = top_scores.values[0, 0, 0].data.cpu()
         low = top_scores.values[0, 0, -1].data.cpu()
+
         scores = torch.where(scores >= low, torch.ones(
-            scores.shape), torch.zeros(scores.shape))
-        h = sk_out * scores
+            scores.shape), torch.zeros(scores.shape))  # the 1/0 vector
 
-        # to remove the zeros rows
-        topk = torch.sum(h, dim=1)
+        h = (sk_out * scores)
+
+        '''
+            gether non-zeros vectors to form s
+        '''
+        topk = torch.sum(h, dim=1)  # to remove the zeros rows
         picks = topk.nonzero(as_tuple=True)[1]  # all T that selected as S
+        print(h.shape, video_features.shape)
+        s = h[:, :, picks]  # the selected decoded features
 
-        s = h[:, :, picks]
+        s = self.conv1(s)  # reconstruct
 
+        s = s + video_features[:, :, picks]
         # print(h[h.nonzero(as_tuple=True)].shape)
-        return s
+        return s, picks
 
 
 if __name__ == '__main__':
     import torch
     net = SK()
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
+    print(net.conv1.weight)
     data = torch.randn((1, 1024, 128))
-    h = net(data)
+    optimizer.zero_grad()
+    h, picks = net(data)
     print(h.shape)
+
+    y = data[0, :, picks].mean(dim=1)
+    x = (h[0].mean(dim=1))
+    print(x.shape, y.shape)
+    loss = torch.mean((y - x)**2) * 1000000
+    print(loss.shape)
+    print(loss)
+    loss.backward()
+    optimizer.step()
+    # print(net)
+    print(net.conv1.weight)
     # import numpy as np
     # print(np.array(out.cpu().data[0]))

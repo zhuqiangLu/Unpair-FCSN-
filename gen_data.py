@@ -53,14 +53,18 @@ def video_to_feature(video_path, bar_descrip='test', image_shape=(224, 224)):
 
     features = None
 
+    fail_frame_count = 0
     with trange(n_frame) as t:
         for i in t:
             t.set_description(bar_descrip)
 
-            _, frame = video.read()
-
-            #image = Image.fromarray(frame).resize((image_shape), resample=Image.BILINEAR)
-            image = preprocessor(Image.fromarray(frame)).unsqueeze(0)
+            ret, frame = video.read()
+            if ret:
+                #image = Image.fromarray(frame).resize((image_shape), resample=Image.BILINEAR)
+                image = preprocessor(Image.fromarray(frame)).unsqueeze(0)
+            else:
+                fail_frame_count += 1
+                
 
             image_feature = feature_extractor(image).cpu().detach().numpy()
             if features is None:
@@ -69,8 +73,9 @@ def video_to_feature(video_path, bar_descrip='test', image_shape=(224, 224)):
                 features = np.concatenate((features, image_feature), axis=1)
 
     video.release()
+    print('fail frame count {}'.format(fail_frame_count))
 
-    return features, n_frame, fps
+    return features, features.shape[1], fps
 
 
 def pick_features(features, fps):
@@ -129,17 +134,17 @@ def downsample_gt(gt, indeces):
 
 
 def segment_video(features, n_frame, fps):
-
+    
     K = np.dot(features.T, features)  # K -> [N, N]
     ncp = int(int(n_frame//fps)/4)
     cps, cost = cpd_auto(K, ncp, 1)  # cps is a (n_cps,) np array
-    print(cps)
-    print(len(cps))
 
     # reform the cps as cps[i] = (cp_start, cp_end)
     cps = [0] + cps.tolist() + [n_frame]
+    cps.sort()
+    
     n_seg = len(cps)-1
-    reform_cps = np.zeros((n_seg, 2), dtype=np.uint8)
+    reform_cps = np.zeros((n_seg, 2), dtype=np.uint32)
     n_frame_per_seg = list()
     for i in range(n_seg):
         reform_cps[i, :] = np.array([cps[i], cps[i+1]-1])
@@ -199,6 +204,7 @@ def gen_summe(T=320):
 
     counter = 1
     for vid_name in vid_names:
+    
         # get gt data
         gt = scipy.io.loadmat(os.path.join(
             gt_path, vid_name.replace('.mp4', '.mat')))
@@ -222,11 +228,9 @@ def gen_summe(T=320):
         # downsample the video and gts
         features, n_frame, fps = video_to_feature(
             video_path, 'summe {}'.format(vid_name))
-        print(features.shape)
-        print(features.dtype)
+
         down_features, picks = pick_features(features, fps)
-        print(down_features.shape)
-        print(down_features.dtype)
+
         #_test_samples(down_video, fps)
 
         vid_group['features'] = down_features
@@ -243,28 +247,11 @@ def gen_summe(T=320):
         vid_group['change_points'] = cps
         vid_group['n_frame_per_seg'] = n_frame_per_seg
 
-        break
+        
         counter += 1
+        
 
 
 if __name__ == "__main__":
-
-    # save_path = os.path.join(os.getcwd(), 'generated_data')
-
-    # dataset_name = 'test'
-    # save_h5 = h5py.File('{}.h5'.format(dataset_name), 'w')
-
-    # video_dir = './RawVideos/summe/videos/'
-    # video_type = 'mp4'
-    # all_files = os.listdir(video_dir)
-    # fnames = [f for f in all_files if f.endswith(video_type)]
-    # video_path = os.path.join(video_dir, fnames[0])
-    # print(video_path)
     gen_summe()
-    # print(get_features(np.zeros((4473, 3, 224,224))).shape)#should be (1024,4473)
-
-    # test for downsample
-    # a = np.random.randint(1, 10, (10, 2))
-    # b = [1, 3, 9]
-    # print(a, b)
-    # print(downsample_gt(a, b))
+   

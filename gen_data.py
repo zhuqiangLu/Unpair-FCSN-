@@ -209,7 +209,6 @@ def gen_summe(T=320):
         gt = scipy.io.loadmat(os.path.join(
             gt_path, vid_name.replace('.mp4', '.mat')))
 
-        # gt_scores = gt['gt_score']  # shape (N, 1)
 
         user_scores = gt['user_score']  # shape(n_frame, n_user)
 
@@ -251,7 +250,50 @@ def gen_summe(T=320):
         counter += 1
         
 
+def gen_tvsum():
+    '''
+        |-tvsum
+        |   |-data
+        |   |   |-ydata-tvsum50-anno.tsv 
+        |   |   |-ydata-tvsum50-info.tsv
+        |   |-matlab
+        |   |   |-some stuff
+        |   |-thumbnail
+        |   |   |-thumbnails
+        |   |-video
+    '''
+
+    # prepare for paths
+    cur = os.getcwd()
+    gen_path = os.path.join(cur, 'generated_data')
+    save_path = os.path.join(gen_path, 'tvsum.h5')
+    vid_path = os.path.join(cur, 'RawVideos/tvsum/video')
+    gt_path = os.path.join(cur, 'RawVideos/tvsum/data')
+
+    # create generated_data dir
+    if not os.path.exists(gen_path):
+        os.mkdir(gen_path)
+
+    # init save h5
+    save_h5 = h5py.File(save_path, 'w')
+
+    # get all videos
+    all_files = os.listdir(vid_path)
+    vid_names = [f for f in all_files if f.endswith('mp4')]
+
+    counter = 1
+    for vid_name in vid_names:
+        # get gt data
+        gt = scipy.io.loadmat(os.path.join(
+            gt_path, vid_name.replace('.mp4', '.mat')))
+
+
+    
+    
+
+
 
 if __name__ == "__main__":
-    gen_summe()
+    #gen_summe()
+    gen_tvsum()
    

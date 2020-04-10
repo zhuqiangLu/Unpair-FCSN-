@@ -269,7 +269,20 @@ def gen_tvsum():
     save_path = os.path.join(gen_path, 'tvsum.h5')
     vid_path = os.path.join(cur, 'RawVideos/tvsum/video')
     gt_file = os.path.join(cur, 'RawVideos/tvsum/data/ydata-tvsum50-anno.tsv')
+        
+   
+    # create generated_data dir
+    if not os.path.exists(gen_path):
+        os.mkdir(gen_path)
 
+    # init save h5
+    save_h5 = h5py.File(save_path, 'w')
+
+    # get all videos
+    all_files = os.listdir(vid_path)
+    vid_names = [f for f in all_files if f.endswith('mp4')]
+
+    counter = 0
     gt = pd.read_csv(gt_file, sep="\t")
     
     raw_scores = dict()
@@ -286,28 +299,47 @@ def gen_tvsum():
 
     for k,v in raw_scores.items():
         raw_scores[k] = np.array(v, dtype=np.uint8).T
+
+    for vid_name, user_scores in raw_scores.items():
+
+        # create h5 group
+        vid_group = save_h5.create_group('video_{}'.format(counter))
+        vid_group['video_name'] = np.string_('{}.mp4'.format(vid_name))
+
+        # get video path
+        video_path = os.path.join(vid_path, '{}.mp4'.format(vid_name))
+
+        user_score_rescale = feature_scaling(user_scores)
+        gt_scores 
+
+        # downsample the video and gts
+        features, n_frame, fps = video_to_feature(
+            video_path, 'tvsum {}'.format('{}.mp4'.format(vid_name)))
         
+        down_features, picks = pick_features(features, fps)
+
+        #_test_samples(down_video, fps)
+
+        vid_group['features'] = down_features
+        vid_group['picks'] = np.array(picks)
+        vid_group['fps'] = fps
+        vid_group['n_frame'] = n_frame
+
+        # _test_samples(samples)
+        vid_group['gt_score'] = downsample_gt(gt_scores, picks)
+        vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
+
+        # segment video using feature vector
+        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+        vid_group['change_points'] = cps
+        vid_group['n_frame_per_seg'] = n_frame_per_seg
+
+        
+        counter += 1
 
 
-        
 
     
-
-   
-    # create generated_data dir
-    if not os.path.exists(gen_path):
-        os.mkdir(gen_path)
-
-    # init save h5
-    save_h5 = h5py.File(save_path, 'w')
-
-    # get all videos
-    all_files = os.listdir(vid_path)
-    vid_names = [f for f in all_files if f.endswith('mp4')]
-
-    counter = 1
-    # for vid_name in vid_names:
-    #    print(vid_name)
     
 
 

@@ -272,6 +272,27 @@ def gen_tvsum():
 
     gt = pd.read_csv(gt_file, sep="\t")
     
+    raw_scores = dict()
+    for row in gt.itertuples():
+        
+        vid_name =  row[1]
+        anno = list(map(int, row[3].split(',')))
+        
+        if vid_name not in raw_scores:
+            raw_scores[vid_name] = list()
+        
+        raw_scores[vid_name].append(anno)
+        #print(np.array(raw_scores[vid_name]).shape)
+
+    for k,v in raw_scores.items():
+        raw_scores[k] = np.array(v, dtype=np.uint8).T
+        
+
+
+        
+
+    
+
    
     # create generated_data dir
     if not os.path.exists(gen_path):

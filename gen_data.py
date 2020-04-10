@@ -12,6 +12,7 @@ from FeatureExtractor import FeatureExtractor
 from cpd_auto import cpd_auto
 from tqdm import tqdm, trange
 import pandas as pd
+
 '''
 GLOBAL variables
 '''
@@ -43,7 +44,7 @@ def _test_samples(samples, fps):
     writer.release()
 
 
-def video_to_feature(video_path, bar_descrip='test', image_shape=(224, 224)):
+def video_to_feature(video_path,bar_descrip='test', image_shape=(224, 224), position=0):
     '''
         sample T frame from the video
     '''
@@ -59,6 +60,7 @@ def video_to_feature(video_path, bar_descrip='test', image_shape=(224, 224)):
             t.set_description(bar_descrip)
 
             ret, frame = video.read()
+            
             if ret:
                 #image = Image.fromarray(frame).resize((image_shape), resample=Image.BILINEAR)
                 image = preprocessor(Image.fromarray(frame)).unsqueeze(0)
@@ -67,6 +69,7 @@ def video_to_feature(video_path, bar_descrip='test', image_shape=(224, 224)):
                 
 
             image_feature = feature_extractor(image).cpu().detach().numpy()
+            
             if features is None:
                 features = image_feature
             else:
@@ -88,7 +91,7 @@ def pick_features(features, fps):
     n_frame = features.shape[1]  # n_frame = fps * length
     n_channel = features.shape[0]
 
-    n_sample = int((n_frame/fps) * 2)  # uniformally downsample to 2 fps
+    n_sample = round((n_frame/fps) * 2)  # uniformally downsample to 2 fps
     n_sample -= n_sample % 32
     down_features = np.zeros((n_channel, n_sample), dtype=features.dtype)
     picks = [int(i * (n_frame / n_sample)) for i in range(n_sample)]
@@ -114,6 +117,8 @@ def feature_scaling(arr):
         rescale_arr[:, i] = (arr[:, i]-min_score) / \
             (max_score-min_score + epsilon)
     return rescale_arr
+
+
 
 
 def downsample_gt(gt, indeces):
@@ -175,6 +180,8 @@ def get_features(video, C=1024, T=320):
     out = feature_extractor(in_tensor).cpu().data
     features = np.concatenate((features, out), axis=1)
     return features
+
+
 
 
 def gen_summe(T=320):
@@ -270,7 +277,7 @@ def gen_tvsum():
     vid_path = os.path.join(cur, 'RawVideos/tvsum/video')
     gt_file = os.path.join(cur, 'RawVideos/tvsum/data/ydata-tvsum50-anno.tsv')
         
-   
+    
     # create generated_data dir
     if not os.path.exists(gen_path):
         os.mkdir(gen_path)
@@ -284,21 +291,22 @@ def gen_tvsum():
 
     counter = 0
     gt = pd.read_csv(gt_file, sep="\t")
-    
     raw_scores = dict()
+
     for row in gt.itertuples():
         
         vid_name =  row[1]
         anno = list(map(int, row[3].split(',')))
-        
+
         if vid_name not in raw_scores:
             raw_scores[vid_name] = list()
         
         raw_scores[vid_name].append(anno)
-        #print(np.array(raw_scores[vid_name]).shape)
+        
 
     for k,v in raw_scores.items():
         raw_scores[k] = np.array(v, dtype=np.uint8).T
+        
 
     for vid_name, user_scores in raw_scores.items():
 
@@ -306,12 +314,14 @@ def gen_tvsum():
         vid_group = save_h5.create_group('video_{}'.format(counter))
         vid_group['video_name'] = np.string_('{}.mp4'.format(vid_name))
 
+        
         # get video path
         video_path = os.path.join(vid_path, '{}.mp4'.format(vid_name))
 
+        
         user_score_rescale = feature_scaling(user_scores)
-        gt_scores 
-
+        gt_scores  = np.mean(user_score_rescale,axis=1).reshape(user_score_rescale.shape[0], 1)
+        
         # downsample the video and gts
         features, n_frame, fps = video_to_feature(
             video_path, 'tvsum {}'.format('{}.mp4'.format(vid_name)))
@@ -339,6 +349,7 @@ def gen_tvsum():
 
 
 
+
     
     
 
@@ -351,4 +362,5 @@ def gen_tvsum():
 if __name__ == "__main__":
     #gen_summe()
     gen_tvsum()
+    
    

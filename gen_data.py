@@ -11,7 +11,7 @@ from torchvision import models, transforms
 from FeatureExtractor import FeatureExtractor
 from cpd_auto import cpd_auto
 from tqdm import tqdm, trange
-
+import pandas as pd
 '''
 GLOBAL variables
 '''
@@ -268,8 +268,11 @@ def gen_tvsum():
     gen_path = os.path.join(cur, 'generated_data')
     save_path = os.path.join(gen_path, 'tvsum.h5')
     vid_path = os.path.join(cur, 'RawVideos/tvsum/video')
-    gt_path = os.path.join(cur, 'RawVideos/tvsum/data')
+    gt_file = os.path.join(cur, 'RawVideos/tvsum/data/ydata-tvsum50-anno.tsv')
 
+    gt = pd.read_csv(gt_file, sep="\t")
+    
+   
     # create generated_data dir
     if not os.path.exists(gen_path):
         os.mkdir(gen_path)
@@ -282,10 +285,9 @@ def gen_tvsum():
     vid_names = [f for f in all_files if f.endswith('mp4')]
 
     counter = 1
-    for vid_name in vid_names:
-        # get gt data
-        gt = scipy.io.loadmat(os.path.join(
-            gt_path, vid_name.replace('.mp4', '.mat')))
+    # for vid_name in vid_names:
+    #    print(vid_name)
+    
 
 
     

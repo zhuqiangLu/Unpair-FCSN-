@@ -360,7 +360,7 @@ def gen_tvsum():
 
 
 if __name__ == "__main__":
-    #gen_summe()
+    gen_summe()
     gen_tvsum()
     
    

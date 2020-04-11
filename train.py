@@ -1,7 +1,7 @@
 from keyFrameSelector import SK
 from summaryDiscriminator import SD
 from dataloader import get_dataloader
-from utils import score_shot, knapsack
+from utils import score_shot, knapsack, f_score
 import torch.optim as optim
 import torch.nn as nn
 import config
@@ -108,6 +108,9 @@ class Trainer(object):
 
         gt_seg_idx = knapsack(gt_seg_scores, n_frame_per_seg, length)
         pred_seg_idx = knapsack(pred_seg_scores, n_frame_per_seg, length)
+
+        F = f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg,)
+        return F
 
     def train(self):
 

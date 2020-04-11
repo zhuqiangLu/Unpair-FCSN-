@@ -31,10 +31,11 @@ class Trainer(object):
 
     def crit_reconst(self, pred_sum, gt_sum):
         '''the expected dim of pred is [1, c, t]'''
+        
         k = pred.shape(2)
         return torch.norm(pred_sum-gt_sum, dim=2).sum()/k
 
-    def crit_div(self, pred, gt):
+    def crit_div(self, pred):
         '''the expected dim of pred is [1, c, t]'''
         k = pred.shape(2)
         cos = nn.CosineSimilarity(dim=0)
@@ -44,7 +45,7 @@ class Trainer(object):
                 if i == j:
                     continue
                 else:
-                    loss += cos(pred[0, :, i], gt[0, :, j])
+                    loss += cos(pred[0, :, i], pred[0, :, j])
         return loss/(k*(k+1))
 
     def train_SD(self, fake_sum, real_sum):
@@ -69,7 +70,7 @@ class Trainer(object):
 
         self.opt_SD.step()
 
-        return pred_read+pred_fake, pred_real, pred_fake
+        return loss_real+loss_fake, pred_real, pred_fake
 
     def train_SK(self, pred_scores, gt_scores, feature_vectors, beta):
         '''
@@ -79,8 +80,25 @@ class Trainer(object):
         '''
 
         self.opt_SK.zero_grad()
-        pred_sum = self.SK(video)
-        loss_adv = self.crit_adv(pred_scores, gt) + self.crit_reconst()
+        pred_sum,picks = self.SK(video)
+        loss_adv = self.crit_adv(self.SD(pred_sum), torch.ones(1, 1)) + self.crit_reconst(pred_sum, feature_vectors[:,:,picks],) + self.crit_div(pred_sum)
+        loss_adv.backward()
+        self.opt_SK().step()
+        return loss_adv, pred_sum, picks
+
+
+    def eval(self, picks, video_info):
+        gt_scores = video_info.['gt_score'][()]
+
+        pred_scores = torch.zeros((gt_score.shape))
+        pred_scores[picks,:] = 1
+
+        
+
+
+
+
+
 
     def train(self):
 

@@ -1,38 +1,22 @@
 import numpy as np
 
 
-def get_keyshot(video_info, pred_scores):
-    n_frames = video_info['n_frames']
-    cps = video_info['change_points']
-    n_frames_per_seg = video_info['n_frame_per_seg']
-    pred_scores = np.array(pred_scores.cpu().data[0])  # shape [S, T]
-    # run argmax to get scores
-    pred_scores = np.argmax(pred_scores, axis=0)  # shape [1, T]
-    pred_scores = upsample(pred_scores, n_frames)  # shape [1, n_frames]
-
-    # prepare for the knapsack
-    pred_seg_scores = np.array(
-        [pred_scores[:, cp[0]:cp[1]+1].mean() for cp in cps])
-
-    selected = knapsack(pred_seg_scores, n_frames_per_seg,
-                        int(n_frames * 0.15))
-
-    # label
-    pred_label = np.zeros(n_frames)
-    for i in selected:
-        pred_label[cps[i][0]:cps[i][1]+1] = 1
+def score_shot(cp, frame_scores, picks):
     '''
-        pred_label -> a list
-        selected -> a list
+        cp: change points, expected shape (n_cp, 2)
+        frame_scores: the scores of the each frames, expect shape (n_selected_frame, 1)
+        picks: the idx of the selected frame in the original video, expected shape (n_selected_frame,)
     '''
-    return pred_label, selected
+
+    
+
 
 
 def knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames):
     '''
-        pred_seg_scores: list
-        n_frames_per_seg: list
-        n_selected_frames: int
+        pred_seg_scores: the score of each segment, type: list
+        n_frames_per_seg: the number of frame that each segment contains, type: list
+        n_selected_frames: the number of frame needs to be selected from the original video, type:int
 
     '''
 
@@ -79,6 +63,37 @@ def knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames):
         i += 1
 
     return best
+
+'''
+the following methods are redundent
+'''
+
+def get_keyshot(video_info, pred_scores):
+    n_frames = video_info['n_frames']
+    cps = video_info['change_points']
+    n_frames_per_seg = video_info['n_frame_per_seg']
+    pred_scores = np.array(pred_scores.cpu().data[0])  # shape [S, T]
+    # run argmax to get scores
+    pred_scores = np.argmax(pred_scores, axis=0)  # shape [1, T]
+    pred_scores = upsample(pred_scores, n_frames)  # shape [1, n_frames]
+
+    # prepare for the knapsack
+    pred_seg_scores = np.array(
+        [pred_scores[:, cp[0]:cp[1]+1].mean() for cp in cps])
+
+    selected = knapsack(pred_seg_scores, n_frames_per_seg,
+                        int(n_frames * 0.15))
+
+    # label
+    pred_label = np.zeros(n_frames)
+    for i in selected:
+        pred_label[cps[i][0]:cps[i][1]+1] = 1
+    '''
+        pred_label -> a list
+        selected -> a list
+    '''
+    return pred_label, selected
+
 
 
 def upsample(pred_scores, n_frames):

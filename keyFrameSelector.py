@@ -27,9 +27,18 @@ class SK(nn.Module):
 
         scores = self.score_layer(h)  # shape (1,1,T)
 
-        top_scores = torch.topk(scores, k, dim=-1)
-        high = top_scores.values[0, 0, 0].data.cpu()
-        low = top_scores.values[0, 0, -1].data.cpu()
+
+        #this part not in the gradient graph
+        '''
+            start
+        ''' 
+        top_scores = torch.topk(scores.detach(), k, dim=-1)
+        high = top_scores.values[0, 0, 0].data.cpu().detach()
+        low = top_scores.values[0, 0, -1].data.cpu().detach()
+        '''
+            end
+        '''
+
 
         scores = torch.where(scores >= low, torch.ones(
             scores.shape), torch.zeros(scores.shape))  # the 1/0 vector
@@ -41,7 +50,6 @@ class SK(nn.Module):
         '''
         topk = torch.sum(h, dim=1)  # to remove the zeros rows
         picks = topk.nonzero(as_tuple=True)[1]  # all T that selected as S
-        print(h.shape, video_features.shape)
         s = h[:, :, picks]  # the selected decoded features
 
         s = self.conv1(s)  # reconstruct
@@ -55,10 +63,12 @@ if __name__ == '__main__':
     import torch
     net = SK()
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
-    print(net.conv1.weight)
+    #print(net.conv1.weight)
     data = torch.randn((1, 1024, 128))
     optimizer.zero_grad()
     h, picks = net(data)
+    
+    print(picks)
     print(h.shape)
 
     y = data[0, :, picks].mean(dim=1)
@@ -70,6 +80,6 @@ if __name__ == '__main__':
     loss.backward()
     optimizer.step()
     # print(net)
-    print(net.conv1.weight)
+    #print(net.conv1.weight)
     # import numpy as np
     # print(np.array(out.cpu().data[0]))

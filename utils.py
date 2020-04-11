@@ -1,15 +1,72 @@
 import numpy as np
 
 
-def score_shot(cp, frame_scores, picks):
+def f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg, epsilon=1e-3):
     '''
-        cp: change points, expected shape (n_cp, 2)
+        gt_seg_idx: the idx of the gt segment, (n_gt_idx, )
+        pred_seg_idx: the idx of the pred segment, (n_pred_idx, )
+        n_frame_per_seg: (n_cp)
+    '''
+
+    pred_length = 0
+    gt_length = 0
+    n_cp = n_frame_per_seg.shape[0]
+
+    for gt_idx in gt_seg_idx:
+        gt_length += n_frame_per_seg[gt_idx]
+
+    for pred_idx in pred_seg_idx:
+        pred_length += n_frame_per_seg[pred_idx]
+
+    overlap_idx = list()
+    l_pred_seg_idx = list(pred_seg_idx)
+    l_gt_seg_idx = list(gt_seg_idx)
+    # find overlap
+    for pred_idx in l_pred_seg_idx:
+        if pred_idx in l_gt_seg_idx:
+            overlap_idx.append(pred_idx)
+
+    overlap = 0
+    for idx in overlap_idx:
+        overlap += n_frame_per_seg[idx]
+
+    P = overlap / pred_length
+    R = overlap / gt_length
+
+    F = (2*P*R)/(P+R+epsilon)
+    return F
+
+
+def score_shot(cps, frame_scores, picks, n_frame_per_seg):
+    '''
+        cps: change points, expected shape (n_cp, 2)
         frame_scores: the scores of the each frames, expect shape (n_selected_frame, 1)
         picks: the idx of the selected frame in the original video, expected shape (n_selected_frame,)
+        n_frame_per_seg: the number of frame per segment, expected shape (n_seg, )
     '''
 
-    
+    # flatten
+    frame_scorse = frame_scores.reshape(-1)
 
+    n_cp = cps.shape[0]
+    seg_scores = np.zeros(n_cp, dtype=np.float32)
+
+    n_selected_frame = frame_scores.shape[0]
+
+    for i in range(n_selected_frame):
+        idx = picks[i]
+        score = frame_scores[i]
+
+        for j in range(n_cp):
+            cp = cps[j]
+            if idx in range(cp[0], cp[1]+1):
+                seg_scores[j] += score
+
+    n_seg = n_frame_per_seg.shape[0]
+    print(seg_scores)
+    for i in range(n_seg):
+        seg_scores[i] /= n_frame_per_seg[i]
+    return seg_scores
 
 
 def knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames):
@@ -55,18 +112,25 @@ def knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames):
     i = 0
     # then find the highest of each row
     for index in indeces:
-        print(i, index)
+
         if best_score < scores[i][index]:
 
             best = selected[i][index]
 
         i += 1
 
-    return best
+    best = [i-1 for i in best]  # fix the index
+    ''' 
+        besdt is a list, containing the index of the selected item
+    '''
+
+    return np.array(best)
+
 
 '''
 the following methods are redundent
 '''
+
 
 def get_keyshot(video_info, pred_scores):
     n_frames = video_info['n_frames']
@@ -95,7 +159,6 @@ def get_keyshot(video_info, pred_scores):
     return pred_label, selected
 
 
-
 def upsample(pred_scores, n_frames):
     ''' the expected shape of pred_scores is [c, t]'''
     n_scores = pred_scores.shape[0]
@@ -120,6 +183,21 @@ def upsample(pred_scores, n_frames):
 
 
 if __name__ == '__main__':
-    best = (knapsack([120, 100, 60], [3, 2, 1], 5))
+    # pred_seg_scores = np.array([1.20, 1.00, 6.0])
+    # n_frames_per_seg = np.array([3, 2, 1])
+    # n_selected_frames = 4
+    # best = (knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames))
+    # print(best.shape)
 
-    print(best)
+    # cps = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+    # frame_scores = np.array([2, 3, 1, 0])
+    # picks = np.array([2, 4, 6, 8])
+    # n_frame_per_seg = np.array([2, 2, 2, 2])
+    # seg_scores = score_shot(cps, frame_scores, picks, n_frame_per_seg,)
+    # print(seg_scores.shape)
+
+    gt_seg_idx = np.array([1])
+    pred_seg_idx = np.array([0, 2, 3])
+    n_frame_per_seg = np.array([2, 3, 4, 3])
+    f = f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg)
+    print(f)

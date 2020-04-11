@@ -1,6 +1,7 @@
 from keyFrameSelector import SK
 from summaryDiscriminator import SD
 from dataloader import get_dataloader
+from utils import score_shot, knapsack
 import torch.optim as optim
 import torch.nn as nn
 import config
@@ -31,7 +32,7 @@ class Trainer(object):
 
     def crit_reconst(self, pred_sum, gt_sum):
         '''the expected dim of pred is [1, c, t]'''
-        
+
         k = pred.shape(2)
         return torch.norm(pred_sum-gt_sum, dim=2).sum()/k
 
@@ -80,25 +81,33 @@ class Trainer(object):
         '''
 
         self.opt_SK.zero_grad()
-        pred_sum,picks = self.SK(video)
-        loss_adv = self.crit_adv(self.SD(pred_sum), torch.ones(1, 1)) + self.crit_reconst(pred_sum, feature_vectors[:,:,picks],) + self.crit_div(pred_sum)
+        pred_sum, picks = self.SK(video)
+        loss_adv = self.crit_adv(self.SD(pred_sum), torch.ones(
+            1, 1)) + self.crit_reconst(pred_sum, feature_vectors[:, :, picks],) + self.crit_div(pred_sum)
         loss_adv.backward()
         self.opt_SK().step()
         return loss_adv, pred_sum, picks
 
-
     def eval(self, picks, video_info):
-        gt_scores = video_info.['gt_score'][()]
+        gt_scores = video_info['gt_score'][()]  # (n, 1)
 
-        pred_scores = torch.zeros((gt_score.shape))
-        pred_scores[picks,:] = 1
+        pred_scores = np.zeros((gt_score.shape))  # (n, 1)
+        pred_scores[picks, :] = 1
 
-        
+        cps = video_info['change_points'][()]  # (n_cp, 2)
+        picks = video_info['picks'][()]  # (n_selected_frame, )
+        n_frame_per_seg = video_info['n_frame_per_seg'][()]  # (n_cp, )
 
+        gt_seg_scores = score_shot(
+            cps, gt_scores, picks, n_frame_per_seg)  # (n_cp, )
+        pred_seg_scores = score_shot(
+            cps, pred_scores, picks, n_frame_per_seg)  # (n_cp, )
 
+        # the length of the summary
+        length = int(video_info['n_frame'][()] * 0.15)
 
-
-
+        gt_seg_idx = knapsack(gt_seg_scores, n_frame_per_seg, length)
+        pred_seg_idx = knapsack(pred_seg_scores, n_frame_per_seg, length)
 
     def train(self):
 

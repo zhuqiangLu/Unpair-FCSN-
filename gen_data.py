@@ -44,7 +44,7 @@ def _test_samples(samples, fps):
     writer.release()
 
 
-def video_to_feature(video_path,bar_descrip='test', image_shape=(224, 224), position=0):
+def video_to_feature(video_path, bar_descrip='test', image_shape=(224, 224), position=0):
     '''
         sample T frame from the video
     '''
@@ -60,16 +60,15 @@ def video_to_feature(video_path,bar_descrip='test', image_shape=(224, 224), posi
             t.set_description(bar_descrip)
 
             ret, frame = video.read()
-            
+
             if ret:
                 #image = Image.fromarray(frame).resize((image_shape), resample=Image.BILINEAR)
                 image = preprocessor(Image.fromarray(frame)).unsqueeze(0)
             else:
                 fail_frame_count += 1
-                
 
             image_feature = feature_extractor(image).cpu().detach().numpy()
-            
+
             if features is None:
                 features = image_feature
             else:
@@ -119,8 +118,6 @@ def feature_scaling(arr):
     return rescale_arr
 
 
-
-
 def downsample_gt(gt, indeces):
     '''
         downsample the gt according to index
@@ -139,7 +136,7 @@ def downsample_gt(gt, indeces):
 
 
 def segment_video(features, n_frame, fps):
-    
+
     K = np.dot(features.T, features)  # K -> [N, N]
     ncp = int(int(n_frame//fps)/4)
     cps, cost = cpd_auto(K, ncp, 1)  # cps is a (n_cps,) np array
@@ -147,7 +144,7 @@ def segment_video(features, n_frame, fps):
     # reform the cps as cps[i] = (cp_start, cp_end)
     cps = [0] + cps.tolist() + [n_frame]
     cps.sort()
-    
+
     n_seg = len(cps)-1
     reform_cps = np.zeros((n_seg, 2), dtype=np.uint32)
     n_frame_per_seg = list()
@@ -182,8 +179,6 @@ def get_features(video, C=1024, T=320):
     return features
 
 
-
-
 def gen_summe(T=320):
     '''
         assume exists
@@ -211,11 +206,10 @@ def gen_summe(T=320):
 
     counter = 1
     for vid_name in vid_names:
-    
+
         # get gt data
         gt = scipy.io.loadmat(os.path.join(
             gt_path, vid_name.replace('.mp4', '.mat')))
-
 
         user_scores = gt['user_score']  # shape(n_frame, n_user)
 
@@ -253,9 +247,8 @@ def gen_summe(T=320):
         vid_group['change_points'] = cps
         vid_group['n_frame_per_seg'] = n_frame_per_seg
 
-        
         counter += 1
-        
+
 
 def gen_tvsum():
     '''
@@ -276,8 +269,7 @@ def gen_tvsum():
     save_path = os.path.join(gen_path, 'tvsum.h5')
     vid_path = os.path.join(cur, 'RawVideos/tvsum/video')
     gt_file = os.path.join(cur, 'RawVideos/tvsum/data/ydata-tvsum50-anno.tsv')
-        
-    
+
     # create generated_data dir
     if not os.path.exists(gen_path):
         os.mkdir(gen_path)
@@ -294,19 +286,17 @@ def gen_tvsum():
     raw_scores = dict()
 
     for row in gt.itertuples():
-        
-        vid_name =  row[1]
+
+        vid_name = row[1]
         anno = list(map(int, row[3].split(',')))
 
         if vid_name not in raw_scores:
             raw_scores[vid_name] = list()
-        
-        raw_scores[vid_name].append(anno)
-        
 
-    for k,v in raw_scores.items():
+        raw_scores[vid_name].append(anno)
+
+    for k, v in raw_scores.items():
         raw_scores[k] = np.array(v, dtype=np.uint8).T
-        
 
     for vid_name, user_scores in raw_scores.items():
 
@@ -314,18 +304,17 @@ def gen_tvsum():
         vid_group = save_h5.create_group('video_{}'.format(counter))
         vid_group['video_name'] = np.string_('{}.mp4'.format(vid_name))
 
-        
         # get video path
         video_path = os.path.join(vid_path, '{}.mp4'.format(vid_name))
 
-        
         user_score_rescale = feature_scaling(user_scores)
-        gt_scores  = np.mean(user_score_rescale,axis=1).reshape(user_score_rescale.shape[0], 1)
-        
+        gt_scores = np.mean(user_score_rescale, axis=1).reshape(
+            user_score_rescale.shape[0], 1)
+
         # downsample the video and gts
         features, n_frame, fps = video_to_feature(
             video_path, 'tvsum {}'.format('{}.mp4'.format(vid_name)))
-        
+
         down_features, picks = pick_features(features, fps)
 
         #_test_samples(down_video, fps)
@@ -344,23 +333,9 @@ def gen_tvsum():
         vid_group['change_points'] = cps
         vid_group['n_frame_per_seg'] = n_frame_per_seg
 
-        
         counter += 1
-
-
-
-
-    
-    
-
-
-    
-    
-
 
 
 if __name__ == "__main__":
     gen_summe()
     gen_tvsum()
-    
-   

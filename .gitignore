@@ -9,4 +9,7 @@ FeatureVectors/
 RawVideos/
 generated_data/
 
+# output
+nohup.out
+
 

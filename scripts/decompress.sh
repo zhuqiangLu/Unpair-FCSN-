@@ -5,6 +5,7 @@ unzip ./RawVideos/summe.zip -d ./RawVideos/summe
 unzip ./RawVideos/ovp.zip -d ./RawVideos/
 unzip ./RawVideos/youtube.zip -d ./RawVideos/
 
+
 unzip ./RawVideos/ydata-tvsum50-v1_1/'*.zip' -d ./RawVideos/tvsum/
 rm -rf ./RawVideos/ydata-tvsum50-v1_1/
 

@@ -37,7 +37,7 @@ def f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg, epsilon=1e-3):
     return F
 
 
-def score_shot(cps, frame_scores, picks, n_frame_per_seg):
+def score_shot(cps, frame_scores, picks, n_frame_per_seg, rescale=True):
     '''
         cps: change points, expected shape (n_cp, 2)
         frame_scores: the scores of the each frames, expect shape (n_selected_frame, 1)
@@ -54,7 +54,11 @@ def score_shot(cps, frame_scores, picks, n_frame_per_seg):
     n_selected_frame = frame_scores.shape[0]
 
     for i in range(n_selected_frame):
-        idx = picks[i]
+        # if picks is none, then the n_select_frame = n_frame
+        if picks is None:
+            idx = i
+        else:
+            idx = picks[i]
         score = frame_scores[i]
 
         for j in range(n_cp):
@@ -62,10 +66,10 @@ def score_shot(cps, frame_scores, picks, n_frame_per_seg):
             if idx in range(cp[0], cp[1]+1):
                 seg_scores[j] += score
 
-    n_seg = n_frame_per_seg.shape[0]
-    print(seg_scores)
-    for i in range(n_seg):
-        seg_scores[i] /= n_frame_per_seg[i]
+    if rescale:
+        n_seg = n_frame_per_seg.shape[0]
+        for i in range(n_seg):
+            seg_scores[i] /= n_frame_per_seg[i]
     return seg_scores
 
 

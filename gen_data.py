@@ -13,6 +13,7 @@ from cpd_auto import cpd_auto
 from tqdm import tqdm, trange
 import pandas as pd
 import re
+from utils import score_shot
 '''
 GLOBAL variables
 '''
@@ -366,8 +367,6 @@ def gen_ovp():
     vid_names = [f for f in all_files if f.endswith('mpg')]
 
     counter = 0
-
-    counter = 1
     for vid_name in vid_names:
 
         # find the gt dir
@@ -376,9 +375,14 @@ def gen_ovp():
         raw_gt = list()
         n_user = 0
         for user in os.listdir(gt_dir):
-            n_user += 1
+            
             gt_frame_dir = os.path.join(gt_dir, user)
             gt_frames = list()
+
+            if not os.path.isdir(gt_frame_dir):
+                    continue
+            else:
+                n_user += 1
 
             for gt_frame in os.listdir(gt_frame_dir):
                 if gt_frame.endswith('jpeg'):
@@ -404,11 +408,126 @@ def gen_ovp():
 
         gt = np.zeros((n_frame, n_user), dtype=np.uint8)
         for i in range(n_user):
-            gt[raw_gt[i], :] = 1
-        print(gt)
+            gt[raw_gt[i], i] = 1
+        
+        user_score_rescale = gt
+
+        # segment video using feature vector
+        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+        
         gt_scores = np.mean(user_score_rescale, axis=1).reshape(
             user_score_rescale.shape[0], 1)
 
+        print(np.array(n_frame_per_seg))
+        # score the segment with gt_scores
+        seg_scores = score_shot(cps, gt_scores, None, np.array(n_frame_per_seg), rescale=False)
+        
+        
+        #_test_samples(down_video, fps)
+
+        vid_group['features'] = down_features
+        vid_group['picks'] = np.array(picks)
+        vid_group['fps'] = fps
+        vid_group['n_frame'] = n_frame
+
+        # _test_samples(samples)
+        vid_group['gt_score'] = downsample_gt(gt_scores, picks)
+        vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
+
+        vid_group['change_points'] = cps
+        vid_group['n_frame_per_seg'] = n_frame_per_seg
+        vid_group['seg_scores'] = seg_scores
+        
+
+        counter += 1
+
+
+def gen_youtube():
+    '''
+        |-youtube
+        |   |-database
+        |   |   |-v1.mpg
+        |   |-UserSummary 
+        |   |   |-v1
+        |   |   |   |-user1
+        |   |   |   |   |-frame*.jpeg
+    '''
+
+    # prepare for paths
+    cur = os.getcwd()
+    gen_path = os.path.join(cur, 'generated_data')
+    save_path = os.path.join(gen_path, 'youtube.h5')
+    vid_path = os.path.join(cur, 'RawVideos/youtube/database')
+    gt_path = os.path.join(cur, 'RawVideos/youtube/UserSummary')
+
+    # create generated_data dir
+    if not os.path.exists(gen_path):
+        os.mkdir(gen_path)
+
+    # init save h5
+    save_h5 = h5py.File(save_path, 'w')
+
+    # get all videos
+    all_files = os.listdir(vid_path)
+    vid_names = [f for f in all_files if (f.endswith('flv') or f.endswith('avi'))]
+
+    counter = 0
+
+    for vid_name in vid_names:
+        
+        # find the gt dir
+        gt_dir = os.path.join(gt_path, vid_name.split('.')[0])
+
+        try:
+            raw_gt = list()
+            n_user = 0
+            for user in os.listdir(gt_dir):
+                
+                gt_frame_dir = os.path.join(gt_dir, user)
+                gt_frames = list()
+                
+                if not os.path.isdir(gt_frame_dir):
+                    continue
+                else:
+                    n_user += 1
+
+                for gt_frame in os.listdir(gt_frame_dir):
+                    
+                    if gt_frame.endswith('jpeg') or gt_frame.endswith('jpg'):
+                        gt_frames = gt_frames + re.findall('\d+', gt_frame)
+                raw_gt.append(list(map(int, gt_frames)))
+
+            raw_gt = np.array(raw_gt)
+
+            # get video path
+            video_path = os.path.join(vid_path, vid_name)
+            
+            # downsample the video and gts
+            features, n_frame, fps = video_to_feature(
+                video_path, 'youtube {}'.format(vid_name))
+
+            down_features, picks = pick_features(features, fps)
+            # process the raw gt
+
+            gt = np.zeros((n_frame, n_user), dtype=np.uint8)
+            
+            for i in range(n_user):
+                gt[raw_gt[i], i] = 1
+            
+            user_score_rescale = gt
+            
+            gt_scores = np.mean(user_score_rescale, axis=1).reshape(
+                user_score_rescale.shape[0], 1)
+
+        except:
+            print("{} fails".format(vid_name))
+        
+        
+
+        # create h5 group
+        vid_group = save_h5.create_group('video_{}'.format(counter))
+
+        vid_group['video_name'] = np.string_(vid_name)
         #_test_samples(down_video, fps)
 
         vid_group['features'] = down_features
@@ -426,10 +545,145 @@ def gen_ovp():
         vid_group['n_frame_per_seg'] = n_frame_per_seg
 
         counter += 1
-        break
+
+
+
+def add_seg_score_tvsum():
+    '''
+        add seg score for ovp and youtube
+    '''
+    cur = os.getcwd()
+    gen_path = os.path.join(cur, 'generated_data')
+
+    tvsum_save_path = os.path.join(gen_path, 'tvsum.h5')
+    tvsum_gt_file = os.path.join(cur, 'RawVideos/tvsum/data/ydata-tvsum50-anno.tsv')
+
+    tvsum_h5 = h5py.File(tvsum_save_path, 'a')
+
+    gt = pd.read_csv(tvsum_gt_file, sep="\t")
+    raw_scores = dict()
+
+    for row in gt.itertuples():
+
+        vid_name = row[1]
+        anno = list(map(int, row[3].split(',')))
+
+        if vid_name not in raw_scores:
+            raw_scores[vid_name] = list()
+
+        raw_scores[vid_name].append(anno)
+
+    for k, v in raw_scores.items():
+        
+        vid_name = "{}.mp4".format(k)
+        for key in tvsum_h5.keys():
+            if tvsum_h5[key]['video_name'][()].decode("utf-8") == vid_name:
+                user_score_rescale = feature_scaling(np.array(v, dtype=np.uint8).T)
+                gt_scores = np.mean(user_score_rescale, axis=1).reshape(user_score_rescale.shape[0], 1)
+                cps = tvsum_h5[key]['change_points'][()]
+                n_frame_per_seg = tvsum_h5[key]['n_frame_per_seg'][()]
+                seg_scores = score_shot(cps, gt_scores, None, np.array(n_frame_per_seg), rescale=True)
+                tvsum_h5[key]['seg_scores'] = seg_scores
+
+    
+
+def add_seg_score_summe():
+    cur = os.getcwd()
+    gen_path = os.path.join(cur, 'generated_data')
+    save_path = os.path.join(gen_path, 'summe.h5')
+    vid_path = os.path.join(cur, 'RawVideos/summe/videos')
+    gt_path = os.path.join(cur, 'RawVideos/summe/GT')
+
+    # get all videos
+    all_files = os.listdir(vid_path)
+    vid_names = [f for f in all_files if f.endswith('mp4')]
+
+    # init save h5
+    summe_h5 = h5py.File(save_path, 'a')
+
+    counter = 1
+    for vid_name in vid_names:
+
+        # get gt data
+        gt = scipy.io.loadmat(os.path.join(
+            gt_path, vid_name.replace('.mp4', '.mat')))
+
+        gt_scores = gt['gt_score']
+
+    
+        for key in summe_h5.keys():
+            if summe_h5[key]["video_name"][()].decode('utf-8') == vid_name:
+                cps = summe_h5[key]['change_points'][()]
+                n_frame_per_seg = summe_h5[key]['n_frame_per_seg'][()]
+                seg_scores = score_shot(cps, gt_scores, None, np.array(n_frame_per_seg), rescale=True)
+                summe_h5[key]["seg_scores"] = seg_scores
+
+
+def add_seg_score_youtube():
+    # prepare for paths
+    cur = os.getcwd()
+    gen_path = os.path.join(cur, 'generated_data')
+    save_path = os.path.join(gen_path, 'youtube.h5')
+    vid_path = os.path.join(cur, 'RawVideos/youtube/database')
+    gt_path = os.path.join(cur, 'RawVideos/youtube/UserSummary')
+
+    youtube_h5 = h5py.File(save_path, 'a')
+
+    for key in youtube_h5.keys():
+        vid_name = youtube_h5[key]['video_name'][()].decode('utf-8')
+         # find the gt dir
+        gt_dir = os.path.join(gt_path, vid_name.split('.')[0])
+        raw_gt = list()
+        n_user = 0
+        for user in os.listdir(gt_dir):
+            
+            gt_frame_dir = os.path.join(gt_dir, user)
+            gt_frames = list()
+            
+            if not os.path.isdir(gt_frame_dir):
+                continue
+            else:
+                n_user += 1
+
+            for gt_frame in os.listdir(gt_frame_dir):
+                
+                if gt_frame.endswith('jpeg') or gt_frame.endswith('jpg'):
+                    gt_frames = gt_frames + re.findall('\d+', gt_frame)
+            raw_gt.append(list(map(int, gt_frames)))
+
+        raw_gt = np.array(raw_gt)
+
+        n_frame = youtube_h5[key]['n_frame'][()]
+        gt = np.zeros((n_frame, n_user), dtype=np.uint8)
+            
+        for i in range(n_user):
+            gt[raw_gt[i], i] = 1
+        
+        
+        user_score_rescale = gt
+
+        gt_scores = np.mean(user_score_rescale, axis=1).reshape(
+                user_score_rescale.shape[0], 1)
+    
+        cps = youtube_h5[key]['change_points'][()]
+        
+        n_frame_per_seg = youtube_h5[key]['n_frame_per_seg'][()]
+        seg_scores = score_shot(cps, gt_scores, None, np.array(n_frame_per_seg), rescale=False)
+        
+        youtube_h5[key]['seg_scores'] = seg_scores
+
+
+            
+
+                
+
+
 
 
 if __name__ == "__main__":
     # gen_summe()
     # gen_tvsum()
-    gen_ovp()
+    # gen_ovp()
+    # gen_youtube()
+    #add_seg_score_summe()
+    add_seg_score_youtube()

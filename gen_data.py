@@ -12,7 +12,7 @@ from FeatureExtractor import FeatureExtractor
 from cpd_auto import cpd_auto
 from tqdm import tqdm, trange
 import pandas as pd
-
+import re
 '''
 GLOBAL variables
 '''
@@ -336,6 +336,100 @@ def gen_tvsum():
         counter += 1
 
 
+def gen_ovp():
+    '''
+        |-ovp
+        |   |-database
+        |   |   |-v1.mpg
+        |   |-UserSummary 
+        |   |   |-v1
+        |   |   |   |-user1
+        |   |   |   |   |-frame*.jpeg
+    '''
+
+    # prepare for paths
+    cur = os.getcwd()
+    gen_path = os.path.join(cur, 'generated_data')
+    save_path = os.path.join(gen_path, 'ovp.h5')
+    vid_path = os.path.join(cur, 'RawVideos/ovp/database')
+    gt_path = os.path.join(cur, 'RawVideos/ovp/UserSummary')
+
+    # create generated_data dir
+    if not os.path.exists(gen_path):
+        os.mkdir(gen_path)
+
+    # init save h5
+    save_h5 = h5py.File(save_path, 'w')
+
+    # get all videos
+    all_files = os.listdir(vid_path)
+    vid_names = [f for f in all_files if f.endswith('mpg')]
+
+    counter = 0
+
+    counter = 1
+    for vid_name in vid_names:
+
+        # find the gt dir
+        gt_dir = os.path.join(gt_path, vid_name.split('.')[0])
+
+        raw_gt = list()
+        n_user = 0
+        for user in os.listdir(gt_dir):
+            n_user += 1
+            gt_frame_dir = os.path.join(gt_dir, user)
+            gt_frames = list()
+
+            for gt_frame in os.listdir(gt_frame_dir):
+                if gt_frame.endswith('jpeg'):
+                    gt_frames = gt_frames + re.findall('\d+', gt_frame)
+            raw_gt.append(list(map(int, gt_frames)))
+
+        raw_gt = np.array(raw_gt)
+
+        # get video path
+        video_path = os.path.join(vid_path, vid_name)
+
+        # create h5 group
+        vid_group = save_h5.create_group('video_{}'.format(counter))
+
+        vid_group['video_name'] = np.string_(vid_name)
+
+        # downsample the video and gts
+        features, n_frame, fps = video_to_feature(
+            video_path, 'ovp {}'.format(vid_name))
+
+        down_features, picks = pick_features(features, fps)
+        # process the raw gt
+
+        gt = np.zeros((n_frame, n_user), dtype=np.uint8)
+        for i in range(n_user):
+            gt[raw_gt[i], :] = 1
+        print(gt)
+        gt_scores = np.mean(user_score_rescale, axis=1).reshape(
+            user_score_rescale.shape[0], 1)
+
+        #_test_samples(down_video, fps)
+
+        vid_group['features'] = down_features
+        vid_group['picks'] = np.array(picks)
+        vid_group['fps'] = fps
+        vid_group['n_frame'] = n_frame
+
+        # _test_samples(samples)
+        vid_group['gt_score'] = downsample_gt(gt_scores, picks)
+        vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
+
+        # segment video using feature vector
+        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+        vid_group['change_points'] = cps
+        vid_group['n_frame_per_seg'] = n_frame_per_seg
+
+        counter += 1
+        break
+
+
 if __name__ == "__main__":
-    gen_summe()
-    gen_tvsum()
+    # gen_summe()
+    # gen_tvsum()
+    gen_ovp()

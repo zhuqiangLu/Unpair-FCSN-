@@ -98,8 +98,9 @@ class Trainer(object):
         picks = video_info['picks'][()]  # (n_selected_frame, )
         n_frame_per_seg = video_info['n_frame_per_seg'][()]  # (n_cp, )
 
-        gt_seg_scores = score_shot(
-            cps, gt_scores, picks, n_frame_per_seg)  # (n_cp, )
+        # gt_seg_scores = score_shot(
+        #     cps, gt_scores, picks, n_frame_per_seg)  # (n_cp, )
+        gt_seg_scores = video_info['seg_scores'][()]
         pred_seg_scores = score_shot(
             cps, pred_scores, picks, n_frame_per_seg)  # (n_cp, )
 

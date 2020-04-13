@@ -72,7 +72,7 @@ class LoadersFactory():
             loaders[k] = DataLoader(TrainData(k, v))
         return loaders
 
-    def get_test_data(self):
+    def get_test_loaders(self):
         loaders = dict()
         for k, v in self.test_pair.items():
             loaders[k] = DataLoader(TestData(k, v))
@@ -110,12 +110,13 @@ if __name__ == "__main__":
     #     print(batch[0].shape)
     #     print(batch[1].shape)
 
-    roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5']
+    roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5', 'generated_data/ovp.h5','generated_data/youtube.h5']
     factory = LoadersFactory(roots)
-    loaders = factory.get_train_loaders()
+    loaders = factory.get_test_loaders()
     for k, v in loaders.items():
         print(k)
         for i, batch in enumerate(v):
             print(i)
             print(batch[0].shape)
             print(batch[1].shape)
+    

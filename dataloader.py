@@ -6,7 +6,7 @@ import random
 
 
 class TrainData(Dataset):
-    def __init__(self, data_root, videos):
+    def __init__(self, data_roots, videos):
 
         self.size = int(len(videos)/2)
         self.V = random.sample(videos, self.size)
@@ -79,6 +79,9 @@ class LoadersFactory():
         return loaders
 
 
+def get_factory():
+    roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5', 'generated_data/ovp.h5','generated_data/youtube.h5']
+    return LoadersFactory(roots)
 if __name__ == "__main__":
     data_root = 'generated_data/summe.h5'
     # train_loader, test_dataset = get_dataloader(data_root, ratio=0.8)

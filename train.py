@@ -1,17 +1,17 @@
 from keyFrameSelector import SK
 from summaryDiscriminator import SD
-from dataloader import get_dataloader
+from dataloader import get_factory
 from utils import score_shot, knapsack, f_score
 import torch.optim as optim
 import torch.nn as nn
 import config
 import torch
-
+from tqdm import tqdm, trange
 
 class Trainer(object):
 
     def __init__(self, data_path, alpha, beta, n_class=2):
-        self.train_loader = get_dataloader()
+        self.factory = get_factory()
 
         self.SD = SD()
         self.opt_SD = optim.SGD(self.SD.parameters(), lr=config.SD_lr)
@@ -114,5 +114,25 @@ class Trainer(object):
         return F
 
     def train(self):
+        
+        with trange(self.epoch, position=0) as epoches:
 
-        for i in range(self.epoch):
+            for epoch in epoches:
+                epoch.set_description('epoch {}'.format(epoch))
+
+                train_loaders = factory.get_train_loaders()
+                dataset_pool = dict()
+                total_data_vol = 0
+                for k,v in train_loaders.items():
+                    dataset_pool[k]=len(v)
+                    total_data_vol += len(v)
+
+                with trange(total_data_vol, position=1) as train_iters:
+                    for train_iter in train_iters:
+                        
+
+                        train_iter.set_description("SK loss: {}, SD loss: {}".format())
+
+                
+
+

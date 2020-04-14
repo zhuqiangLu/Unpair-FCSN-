@@ -106,7 +106,9 @@ class LoadersFactory():
             keys = [key for key in h5py.File(path, 'r').keys()]
             test_vids = random.sample(
                 keys, int(len(keys) * round(1-ratio, 2)))
-            self.test_pair[path] = test_vids
+            if ratio < 1.0:
+                self.test_pair[path] = test_vids
+                
             self.train_pair[path] = [
                 key for key in keys if key not in test_vids]
         
@@ -161,8 +163,27 @@ if __name__ == "__main__":
     #     print(batch[1].shape)
 
     roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5', 'generated_data/ovp.h5','generated_data/youtube.h5']
-    ratios = [0.8, 0.8, 1.0, 1.0]
+    ratios = [0.0, 1.0, 1.0, 1.0]
     factory = LoadersFactory(roots, ratios)
+    loaders = factory.get_train_loaders()
+    # print(len(loaders))
+    # print(loaders.keys())
+    # for k, v in loaders.items():
+    #     print(k)
+    #     for i, video_info in enumerate(v):
+    #         print(i)
+    #         print(video_info[0].shape)
+            
+    # print(len(loader))
+    print(len(loaders))
+    # from tqdm import tqdm
+    for i,batch in enumerate(loaders):
+        
+        print(i)
+        print(batch[0].shape)
+        print(batch[1].shape)   
+        j = 0
+
     loaders = factory.get_test_loaders()
     print(len(loaders))
     print(loaders.keys())
@@ -171,14 +192,6 @@ if __name__ == "__main__":
         for i, video_info in enumerate(v):
             print(i)
             print(video_info[0].shape)
-            
-    # print(len(loader))
-    # print(len(loader))
-    # from tqdm import tqdm
-    # for i,batch in enumerate(loader):
-    #     i = 1
-    #     print(i)
-    #     print(batch[0].shape)
-    #     print(batch[1].shape)
+
 
     

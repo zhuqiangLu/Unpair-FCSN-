@@ -316,21 +316,30 @@ def gen_tvsum():
         features, n_frame, fps = video_to_feature(
             video_path, 'tvsum {}'.format('{}.mp4'.format(vid_name)))
 
+        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+
+        seg_scores = score_shot(cps, gt_scores, None, np.array(n_frame_per_seg), rescale=True)
+
+        
+
         down_features, picks = pick_features(features, fps)
+        summary = video_to_summary(down_features, seg_scores, picks)
 
         #_test_samples(down_video, fps)
+        
 
         vid_group['features'] = down_features
         vid_group['picks'] = np.array(picks)
         vid_group['fps'] = fps
         vid_group['n_frame'] = n_frame
-
+        vid_group['seg_scores'] = seg_scores
+        vid_group['summary'] = summary
         # _test_samples(samples)
         vid_group['gt_score'] = downsample_gt(gt_scores, picks)
         vid_group['user_score'] = downsample_gt(user_score_rescale, picks)
 
         # segment video using feature vector
-        cps, n_frame_per_seg = segment_video(features, n_frame, fps)
+        
         vid_group['change_points'] = cps
         vid_group['n_frame_per_seg'] = n_frame_per_seg
 
@@ -418,7 +427,7 @@ def gen_ovp():
         gt_scores = np.mean(user_score_rescale, axis=1).reshape(
             user_score_rescale.shape[0], 1)
 
-        print(np.array(n_frame_per_seg))
+        
         # score the segment with gt_scores
         seg_scores = score_shot(cps, gt_scores, None, np.array(n_frame_per_seg), rescale=False)
         

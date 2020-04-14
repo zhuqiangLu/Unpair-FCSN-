@@ -1,5 +1,52 @@
 import numpy as np
 
+def construct_S(video_info):
+    '''
+        cps: change points, expected shape (n_cp, 2)
+        selected_segs: (k, )
+        picks: the idx of the selected frame in the original video, expected shape (n_selected_frame,)
+        feature: (c, n_selected_frame)
+    '''
+    
+    seg_scores = video_info['seg_scores'][()]
+    cps = video_info['change_points'][()]
+    features = video_info['features'][()]
+    picks = video_info['picks'][()]
+    n_frame_per_seg = video_info['n_frame_per_seg'][()]
+    n_selected_frame = features.shape[1]
+    n_frame = video_info['n_frame'][()]
+    selected_segs = knapsack(seg_scores, n_frame_per_seg, int(n_frame*0.15))
+    if selected_segs is None:
+        return None
+        
+    S_cps = cps[selected_segs, :]
+   
+    c = features.shape[0]
+    
+    S = None
+    # print("S_cps shape", S_cps.shape)
+    # print("selected_segs shape", selected_segs.shape)
+    # print("cps shape ", cps.shape)
+    
+    for i in range(n_selected_frame):
+        
+        for j in range(S_cps.shape[0]):
+            S_cp = S_cps[j,:]
+            #print(S_cp[0], S_cp[1])
+            if picks[i] in range(S_cp[0], S_cp[1]):
+                
+                if S is None:
+                    S = features[:, i].reshape(c, 1)
+                else:
+                    
+                    S = np.concatenate((S, features[:, i].reshape(c,1)), axis=1)
+
+    return S
+
+
+
+
+
 
 def f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg, epsilon=1e-3):
     '''
@@ -122,10 +169,12 @@ def knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames):
             best = selected[i][index]
 
         i += 1
-
-    best = [i-1 for i in best]  # fix the index
+    if best is not None:
+        best = [i-1 for i in best]  # fix the index
+    else:
+        return None
     ''' 
-        besdt is a list, containing the index of the selected item
+        best is a list, containing the index of the selected item
     '''
 
     return np.array(best)
@@ -187,11 +236,11 @@ def upsample(pred_scores, n_frames):
 
 
 if __name__ == '__main__':
-    # pred_seg_scores = np.array([1.20, 1.00, 6.0])
-    # n_frames_per_seg = np.array([3, 2, 1])
-    # n_selected_frames = 4
-    # best = (knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames))
-    # print(best.shape)
+    pred_seg_scores = np.array([2.5 ,0, 0])
+    n_frames_per_seg = np.array([59, 57, 166])
+    n_selected_frames = 141
+    best = (knapsack(pred_seg_scores, n_frames_per_seg, n_selected_frames))
+    print(best.shape)
 
     # cps = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
     # frame_scores = np.array([2, 3, 1, 0])
@@ -200,8 +249,8 @@ if __name__ == '__main__':
     # seg_scores = score_shot(cps, frame_scores, picks, n_frame_per_seg,)
     # print(seg_scores.shape)
 
-    gt_seg_idx = np.array([1])
-    pred_seg_idx = np.array([0, 2, 3])
-    n_frame_per_seg = np.array([2, 3, 4, 3])
-    f = f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg)
-    print(f)
+    # gt_seg_idx = np.array([1])
+    # pred_seg_idx = np.array([0, 2, 3])
+    # n_frame_per_seg = np.array([2, 3, 4, 3])
+    # f = f_score(gt_seg_idx, pred_seg_idx, n_frame_per_seg)
+    # print(f)

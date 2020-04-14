@@ -33,15 +33,16 @@ class SK(nn.Module):
             start
         ''' 
         top_scores = torch.topk(scores.detach(), k, dim=-1)
-        high = top_scores.values[0, 0, 0].data.cpu().detach()
-        low = top_scores.values[0, 0, -1].data.cpu().detach()
+        
+        high = top_scores.values[0, 0, 0].detach()
+        low = top_scores.values[0, 0, -1].detach()
         '''
             end
         '''
 
 
         scores = torch.where(scores >= low, torch.ones(
-            scores.shape), torch.zeros(scores.shape))  # the 1/0 vector
+            scores.shape).to('cuda') , torch.zeros(scores.shape).to('cuda'))   # the 1/0 vector
 
         h = (sk_out * scores)
 
@@ -61,14 +62,15 @@ class SK(nn.Module):
 
 if __name__ == '__main__':
     import torch
-    net = SK()
+    net = SK().to('cuda')
+    net.train()
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
     #print(net.conv1.weight)
-    data = torch.randn((1, 1024, 128))
+    data = torch.randn((1, 1024, 64)).to('cuda')
     optimizer.zero_grad()
     h, picks = net(data)
-    
-    print(picks)
+    picks = picks.cpu().data.numpy()
+    print(picks.shape)
     print(h.shape)
 
     y = data[0, :, picks].mean(dim=1)

@@ -60,13 +60,14 @@ class Trainer(object):
             make sure the fake_sum are DETACHED from the generator net
         '''
 
+        self.opt_SD.zero_grad()
+        self.opt_SK.zero_grad()
         self.SD.train()
         self.SK.train()
         '''
             train sd
         '''
-        
-        self.opt_SD.zero_grad()
+    
         
         # train on real data
     
@@ -94,11 +95,10 @@ class Trainer(object):
         ''' 
             train sk
         '''
-        self.opt_SK.zero_grad()
 
         #pred_sum, picks = self.SK(v)
 
-        sk_loss = self.crit_adv(self.SD(pred_sum), torch.zeros(
+        sk_loss = self.crit_adv(self.SD(pred_sum), torch.ones(
             1, 1, device=self.device)) + self.crit_reconst(pred_sum, v[:, :, picks],) + (self.beta*self.crit_div(pred_sum))
         
         sk_loss.backward()

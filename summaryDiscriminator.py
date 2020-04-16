@@ -13,8 +13,8 @@ class SD(nn.Module):
             FCSN_ENC_SD(),
             FCSN_MID_SD(n_class=self.n_feature)
         )
-
-        #self.avgpool = nn.AvgPool1d(2, stride=2)
+        
+        self.avgpool = nn.AvgPool1d(2, stride=2)
         self.fc = nn.Linear(self.n_feature, 1, bias=False)
         self.sigmoid = nn.Sigmoid()
 
@@ -37,7 +37,7 @@ class SD(nn.Module):
 if __name__ == '__main__':
     import torch
     net = SD()
-    data = torch.randn((1, 1024, 9))
+    data = torch.randn((1, 1024, 19))
     out = net(data)
     print(out.cpu().data)
     loss = nn.BCELoss()

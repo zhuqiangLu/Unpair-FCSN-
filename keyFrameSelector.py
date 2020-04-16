@@ -49,13 +49,13 @@ class SK(nn.Module):
         '''
             gether non-zeros vectors to form s
         '''
-        topk = torch.sum(h, dim=1)  # to remove the zeros rows
+        topk = torch.sum(h.detach(), dim=1)  # to remove the zeros rows
         picks = topk.nonzero(as_tuple=True)[1]  # all T that selected as S
-        s = h[:, :, picks]  # the selected decoded features
+        s = h[:, :, picks.detach()]  # the selected decoded features
 
         s = self.conv1(s)  # reconstruct
 
-        s = s + video_features[:, :, picks]
+        s = s + video_features[:, :, picks.detach()]
         # print(h[h.nonzero(as_tuple=True)].shape)
         return s, picks
 

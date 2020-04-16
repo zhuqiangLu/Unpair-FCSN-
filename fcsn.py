@@ -225,7 +225,7 @@ class FCSN_MID(nn.Module):
             nn.BatchNorm1d(2048),
             nn.ReLU(inplace=True),
             # the temporal max pooling
-            #nn.MaxPool1d(2, stride=2, ceil_mode=True),
+            nn.MaxPool1d(2, stride=2, ceil_mode=True),
         )
 
         # 1/32
@@ -289,7 +289,7 @@ class FCSN(nn.Module):
         h = self.FCSN_MID(h)
 
         upscore = self.deconv1(h)
-
+        
         h = upscore + skip
         h = self.deconv2(h)
 

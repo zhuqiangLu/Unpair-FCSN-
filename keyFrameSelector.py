@@ -32,10 +32,11 @@ class SK(nn.Module):
         '''
             start
         ''' 
-        top_scores = torch.topk(scores.detach(), k, dim=-1)
         
-        high = top_scores.values[0, 0, 0].detach()
-        low = top_scores.values[0, 0, -1].detach()
+        top_scores = torch.topk(scores, k, dim=-1)
+        
+        high = top_scores.values[0, 0, 0]
+        low = top_scores.values[0, 0, -1]
         '''
             end
         '''
@@ -46,17 +47,16 @@ class SK(nn.Module):
 
         h = (sk_out * scores)
 
+
         '''
             gether non-zeros vectors to form s
         '''
         topk = torch.sum(h.detach(), dim=1)  # to remove the zeros rows
         picks = topk.nonzero(as_tuple=True)[1]  # all T that selected as S
-        s = h[:, :, picks.detach()]  # the selected decoded features
 
-        s = self.conv1(s)  # reconstruct
-
-        s = s + video_features[:, :, picks.detach()]
-        # print(h[h.nonzero(as_tuple=True)].shape)
+        h = self.conv1(h)
+        s = h + video_features
+        
         return s, picks
 
 

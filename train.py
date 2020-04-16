@@ -8,6 +8,7 @@ import torch
 from tqdm import tqdm, trange
 import matplotlib.pyplot as plt
 import numpy as np
+from torch.autograd.variable import Variable
 
 class Trainer(object):
 
@@ -15,15 +16,17 @@ class Trainer(object):
         self.factory = config.factory
         self.device = torch.device("cuda:0" if
             torch.cuda.is_available() else "cpu")
+        
 
 
-        self.SD = SD().to(self.device)
+        self.SD = SD().to('cuda')
         self.opt_SD = optim.SGD(self.SD.parameters(), lr=config.SD_lr)
         self.SD_losses = list()
 
-        self.SK = SK().to(self.device)
-        self.opt_SK = optim.Adam(self.SD.parameters(), lr=config.SK_lr)
+        self.SK = SK().to('cuda')
+        self.opt_SK = optim.Adam(self.SK.parameters(), lr=config.SK_lr)
         self.SK_losses = list()
+
         self.crit_adv = nn.BCELoss()
 
         self.epoch = config.epoch
@@ -31,6 +34,12 @@ class Trainer(object):
 
         self.pred_fake = list()
         self.pred_real = list()
+        self.reconst_loss = list()
+        self.div_loss = list()
+        self.adv_sk = list()
+        self.adv_sd_real = list()
+        self.adv_sd_fake = list()
+        self.n_test_sample = list()
         
         self.f = dict()
 
@@ -53,6 +62,16 @@ class Trainer(object):
                     loss += cos(pred[0, :, i], pred[0, :, j])
         return loss/(k*(k+1))
 
+
+    def real_label(self, N):
+        label = Variable(torch.ones(N, 1)).to("cuda")
+        return label
+    
+    def fake_label(self, N):
+        label = Variable(torch.zeros(N, 1)).to("cuda")
+        return label
+
+
     def _train(self, v,s):
         '''
             note that this method takes one sample at a time
@@ -73,18 +92,18 @@ class Trainer(object):
     
         pred_real = self.SD(s)
         # as all frames belongs to the summary
-        sd_loss_real = self.crit_adv(pred_real, torch.ones(1, 1, device=self.device))
+
+        sd_loss_real = self.crit_adv(pred_real, self.real_label(s.shape[0]))
         sd_loss_real.backward()
+        self.adv_sd_real.append(sd_loss_real.item())
+        self.opt_SD.step()
 
-        
         pred_sum, picks = self.SK(v)
-        
-        
-        pred_fake= self.SD(pred_sum.detach())
+        pred_fake= self.SD(pred_sum[:,:,picks].detach())
 
-        sd_loss_fake = self.crit_adv(pred_fake, torch.zeros(1, 1, device=self.device))
-
+        sd_loss_fake = self.crit_adv(pred_fake, self.fake_label(s.shape[0]))
         sd_loss_fake.backward()
+        self.adv_sd_fake.append(sd_loss_fake.item())
         self.opt_SD.step()
 
         sd_loss = sd_loss_real + sd_loss_fake
@@ -98,13 +117,18 @@ class Trainer(object):
 
         #pred_sum, picks = self.SK(v)
 
-        sk_loss = self.crit_adv(self.SD(pred_sum), torch.ones(
-            1, 1, device=self.device)) + self.crit_reconst(pred_sum, v[:, :, picks],) + (self.beta*self.crit_div(pred_sum))
-        
-        sk_loss.backward()
-        self.SK_losses.append(sk_loss.item())
-        self.opt_SK.step()
+        adv_sk_loss = self.crit_adv(self.SD(pred_sum[:,:,picks]), self.real_label(s.shape[0]))
+        reconst = self.crit_reconst(pred_sum[:,:,picks], v[:, :, picks.detach()],)
+        div = (self.beta*self.crit_div(pred_sum[:,:,picks]))
 
+        sk_loss = adv_sk_loss + reconst  + div
+        sk_loss.backward()
+        self.adv_sk.append( adv_sk_loss.item())
+        self.reconst_loss.append( reconst.item())
+        self.div_loss.append(div.item())
+        self.opt_SK.step()
+        
+        self.SK_losses.append(sk_loss.item())
         self.pred_fake.append( pred_fake.cpu().detach().numpy()[0,0])
         self.pred_real.append( pred_real.cpu().detach().numpy()[0,0])
 
@@ -113,6 +137,7 @@ class Trainer(object):
 
     def eval(self, features, gt_seg_scores, cps, gt_picks, n_frame_per_seg, n_frame):
         self.SK.eval()
+
         cps = cps.cpu().data.numpy()[0]
         gt_picks = gt_picks.cpu().data.numpy()[0]
         gt_seg_scores = gt_seg_scores.cpu().data.numpy()[0]
@@ -171,6 +196,8 @@ class Trainer(object):
                 for key in keys:
                     if key not in self.f:
                         self.f[key] = list()
+                    
+                    self.n_test_sample.append(len(loaders[key]))
 
                 with trange(len(keys), position= 2) as idx:
             
@@ -194,18 +221,31 @@ class Trainer(object):
         
         self.save_loss_plot()
         self.save_f_plot()
+        self.save_pred_plot()
+
+
+    def save_pred_plot(self):
+        plt.clf()
+
+        plt.plot(self.pred_fake, label = 'pred_fake')
+
+        plt.plot(self.pred_real, label = 'pred_real')
+
+        plt.legend()
+
+        plt.savefig('pred.png')
 
     
     def save_loss_plot(self):
         plt.clf()
 
-        plt.plot(self.SK_losses, label = 'sk_loss')
-
-        plt.plot(self.SD_losses, label = 'SD_loss')
-
-        plt.plot(self.pred_fake, label = 'pred_fake')
-
-        plt.plot(self.pred_real, label = 'pred_real')
+        plt.plot(self.SK_losses, label = 'total_SK_loss')
+        plt.plot(self.SD_losses, label = 'total_SD_loss')
+        plt.plot(self.reconst_loss, label = "reconst_loss" )
+        plt.plot(self.div_loss, label = 'div_loss')
+        plt.plot(self.adv_sk, label = 'adv_sk')
+        plt.plot(self.adv_sd_real, label = 'adv_sd_real')
+        plt.plot(self.adv_sd_fake, label = 'adv_sd_fake')
 
         plt.legend()
 
@@ -216,8 +256,11 @@ class Trainer(object):
 
         fig = plt.figure()
 
+        counter = 0
+
         for k,v in self.f.items():
-            plt.plot(v, label=k)
+            plt.plot(v/self.n_test_sample[counter], label=k)
+            counter+= 1
     
 
         plt.legend()

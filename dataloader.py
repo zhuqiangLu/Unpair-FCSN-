@@ -56,6 +56,11 @@ class MultiTrainData(Dataset):
 
         video_info_v = reader[V_name]
         features = (torch.tensor(video_info_v['features'][()]))
+        
+        while features.shape[-1] <= 32:
+            V_name = random.sample(self.video_sets[d], 1)[0]
+            video_info_v = reader[V_name]
+            features = (torch.tensor(video_info_v['features'][()]))
 
         video_info_s = reader[S_name] 
         summary = None
@@ -83,7 +88,9 @@ class TestData(Dataset):
         #idx += 1
         key = self.videos[idx]
         video = self.data[key]
+
         features = (torch.tensor(video['features'][()]))
+
         #gt = video['gt_scores'][()]
         cps = np.array(video['change_points'][()], np.int32)
         picks = video['picks'][()]
@@ -179,19 +186,19 @@ if __name__ == "__main__":
     # from tqdm import tqdm
     for i,batch in enumerate(loaders):
         
-        print(i)
+        
         print(batch[0].shape)
         print(batch[1].shape)   
         j = 0
 
-    loaders = factory.get_test_loaders()
-    print(len(loaders))
-    print(loaders.keys())
-    for k, v in loaders.items():
-        print(k)
-        for i, video_info in enumerate(v):
-            print(i)
-            print(video_info[0].shape)
+    # loaders = factory.get_test_loaders()
+    # print(len(loaders))
+    # print(loaders.keys())
+    # for k, v in loaders.items():
+    #     print(k)
+    #     for i, video_info in enumerate(v):
+    #         print(i)
+    #         print(video_info[0].shape)
 
 
     

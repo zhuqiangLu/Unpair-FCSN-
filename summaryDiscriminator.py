@@ -1,13 +1,13 @@
 import torch.nn as nn
 from fcsn import FCSN_ENC_SD, FCSN_MID_SD
-
+import torch.optim as optim
 
 class SD(nn.Module):
 
     def __init__(self):
         super(SD, self).__init__()
 
-        self.n_feature = 1
+        self.n_feature = 1024
 
         self.enc = nn.Sequential(
             FCSN_ENC_SD(),
@@ -36,12 +36,19 @@ class SD(nn.Module):
 
 if __name__ == '__main__':
     import torch
-    net = SD()
-    data = torch.randn((1, 1024, 19))
-    out = net(data)
-    print(out.cpu().data)
+    net = SD().to('cuda')
+    opt = optim.SGD(net.parameters(), lr=0.002)
     loss = nn.BCELoss()
-    print(loss(out, torch.ones(1, 1)).item())
+
+    for i in range(50):
+        opt.zero_grad()
+        data = torch.randn((1, 1024, 19)).to('cuda')
+        out = net(data)
+        l = loss(out, torch.ones(1, 1).to('cuda'))
+        l.backward()
+        opt.step()
+        print(out)
+    
 
    
     

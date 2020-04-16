@@ -12,7 +12,7 @@ from torch.autograd.variable import Variable
 
 class Trainer(object):
 
-    def __init__(self, beta=1e-3):
+    def __init__(self, beta=1):
         self.factory = config.factory
         self.device = torch.device("cuda:0" if
             torch.cuda.is_available() else "cpu")
@@ -39,7 +39,7 @@ class Trainer(object):
         self.adv_sk = list()
         self.adv_sd_real = list()
         self.adv_sd_fake = list()
-        self.n_test_sample = list()
+        
         
         self.f = dict()
 
@@ -47,7 +47,7 @@ class Trainer(object):
         '''the expected dim of pred is [1, c, t]'''
 
         k = pred_sum.shape[2]
-        return torch.norm(pred_sum-gt_sum, dim=2).sum()/k
+        return torch.norm(pred_sum-gt_sum, dim=1).sum()/k
 
     def crit_div(self, pred):
         '''the expected dim of pred is [1, c, t]'''
@@ -101,7 +101,7 @@ class Trainer(object):
         pred_sum, picks = self.SK(v)
         pred_fake= self.SD(pred_sum[:,:,picks].detach())
 
-        sd_loss_fake = self.crit_adv(pred_fake, self.fake_label(s.shape[0]))
+        sd_loss_fake = self.crit_adv(pred_fake, self.fake_label(s.shape[0])) 
         sd_loss_fake.backward()
         self.adv_sd_fake.append(sd_loss_fake.item())
         self.opt_SD.step()
@@ -197,7 +197,7 @@ class Trainer(object):
                     if key not in self.f:
                         self.f[key] = list()
                     
-                    self.n_test_sample.append(len(loaders[key]))
+                
 
                 with trange(len(keys), position= 2) as idx:
             
@@ -205,7 +205,8 @@ class Trainer(object):
                     for i in idx:
                         key = keys[i]
                         loader = loaders[key]
-
+                        f_score = 0
+                        counter = 0
                         for j, video_info in enumerate(tqdm(loader)):
                             features = video_info[0]
                             gt_seg_scores = video_info[1]
@@ -213,9 +214,10 @@ class Trainer(object):
                             picks = video_info[3]
                             n_frame_per_seg = video_info[4]
                             n_frame = video_info[5]
-                            f_score = self.eval(features, gt_seg_scores, cps, picks, n_frame_per_seg, n_frame)
-                            self.f[key].append(f_score)
-                            idx.set_description("f {}".format(f_score))
+                            f_score += self.eval(features, gt_seg_scores, cps, picks, n_frame_per_seg, n_frame)
+                            counter += 1
+                            
+                        self.f[key].append(f_score/counter)
                         
 
         
@@ -259,7 +261,7 @@ class Trainer(object):
         counter = 0
 
         for k,v in self.f.items():
-            plt.plot(v/self.n_test_sample[counter], label=k)
+            plt.plot(v, label=k)
             counter+= 1
     
 

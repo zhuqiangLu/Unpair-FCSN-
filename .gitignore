@@ -11,6 +11,5 @@ generated_data/
 
 # output
 nohup.out
-f_score.png
-loss.png
+*.png
 

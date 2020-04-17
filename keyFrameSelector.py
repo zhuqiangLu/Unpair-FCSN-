@@ -62,11 +62,27 @@ class SK(nn.Module):
 
 if __name__ == '__main__':
     import torch
-    net = SK().to('cuda')
-    data = torch.randn((1, 1024, 64)).to('cuda')
-    s, picks = net(data)
 
-    print(s[:,:,picks].shape)
+    
+    net = SK().to('cuda')
+    
+    
+    opt= torch.optim.Adam(net.parameters(), lr=0.1)
+    for i in range(100):
+        opt.zero_grad()
+        net.train()
+        data = torch.randn((1, 1024, 64)).to('cuda')
+        gt = data
+        s, picks = net(data)
+        k = s.shape[2]
+        loss = torch.norm(s[:,:,picks]-gt[:,:,picks], dim=1).sum()/k
+        loss.backward()
+        opt.step()
+        print(loss)
+        #print((data-gt).sum())
+
+
+  
     # net.train()
     # optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
     # #print(net.conv1.weight)

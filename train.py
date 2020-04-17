@@ -20,7 +20,7 @@ class Trainer(object):
 
 
         self.SD = SD().to('cuda')
-        self.opt_SD = optim.SGD(self.SD.parameters(), lr=config.SD_lr)
+        self.opt_SD = optim.Adam(self.SD.parameters(), lr=config.SD_lr)
         self.SD_losses = list()
 
         self.SK = SK().to('cuda')
@@ -71,6 +71,33 @@ class Trainer(object):
         label = Variable(torch.zeros(N, 1)).to("cuda")
         return label
 
+    def _run(self):
+        train_loader = self.factory.get_train_loaders()
+        dataset_pool = dict()
+        avail_data = len(train_loader)
+        
+        '''
+            train
+        '''
+        net = SK().to('cuda')
+    
+    
+        opt= torch.optim.Adam(net.parameters(), lr=0.00001)
+        for i, batch in enumerate(train_loader):
+            v = batch[0].to(self.device)
+            s = batch[1].to(self.device)
+            gt = v
+            opt.zero_grad()
+            pred_sum, picks = net(v)
+            # self.opt_SK.zero_grad()
+            # self.SK.train()
+            #pred_sum, picks = self.SK(v)
+            reconst = self.crit_reconst(pred_sum[:,:,picks], v[:, :, picks].detach(),)
+            reconst.backward()
+            #self.opt_SK.step()
+            opt.step()
+            print(reconst,(gt-v).sum())
+            # print((gt-v).sum())
 
     def _train(self, v,s):
         '''
@@ -80,9 +107,10 @@ class Trainer(object):
         '''
 
         self.opt_SD.zero_grad()
-        self.opt_SK.zero_grad()
         self.SD.train()
-        self.SK.train()
+        for p in self.SD.parameters():
+            p.requires_grad = True
+        
         '''
             train sd
         '''
@@ -116,11 +144,16 @@ class Trainer(object):
         '''
 
         #pred_sum, picks = self.SK(v)
+        self.opt_SK.zero_grad()
+
+        for p in self.SD.parameters():
+            p.requires_grad = False
+        
 
         adv_sk_loss = self.crit_adv(self.SD(pred_sum[:,:,picks]), self.real_label(s.shape[0]))
-        reconst = self.crit_reconst(pred_sum[:,:,picks], v[:, :, picks.detach()],)
+        reconst = self.crit_reconst(pred_sum[:,:,picks], v[:, :, picks],)
         div = (self.beta*self.crit_div(pred_sum[:,:,picks]))
-
+        #print(adv_sk_loss, reconst, div)
         sk_loss = adv_sk_loss + reconst  + div
         sk_loss.backward()
         self.adv_sk.append( adv_sk_loss.item())

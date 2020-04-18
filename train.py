@@ -22,10 +22,14 @@ class Trainer(object):
         self.SD = SD().to('cuda')
         self.opt_SD = optim.Adam(self.SD.parameters(), lr=config.SD_lr)
         self.SD_losses = list()
+        self.SD_scheduler = optim.lr_scheduler.StepLR(self.opt_SD, step_size=20, gamma=0.8)
+
+
 
         self.SK = SK().to('cuda')
         self.opt_SK = optim.Adam(self.SK.parameters(), lr=config.SK_lr)
         self.SK_losses = list()
+        self.SK_scheduler = optim.lr_scheduler.StepLR(self.opt_SK, step_size=20, gamma=0.8)
 
         self.crit_adv = nn.BCELoss()
 
@@ -83,6 +87,7 @@ class Trainer(object):
     
     
         opt= torch.optim.Adam(net.parameters(), lr=0.00001)
+
         for i, batch in enumerate(train_loader):
             v = batch[0].to(self.device)
             s = batch[1].to(self.device)
@@ -200,6 +205,7 @@ class Trainer(object):
 
             for epoch in epoches:
 
+
                 train_loader = self.factory.get_train_loaders()
                 dataset_pool = dict()
                 avail_data = len(train_loader)
@@ -207,6 +213,8 @@ class Trainer(object):
                 '''
                     train
                 '''
+                self.SD_scheduler.step()
+                self.SK_scheduler.step()
                 for i, batch in enumerate(tqdm(train_loader, position = 1)):
                     v = batch[0].to(self.device)
                     s = batch[1].to(self.device)
@@ -273,18 +281,24 @@ class Trainer(object):
     
     def save_loss_plot(self):
         plt.clf()
-
         plt.plot(self.SK_losses, label = 'total_SK_loss')
         plt.plot(self.SD_losses, label = 'total_SD_loss')
+        plt.legend()
+        plt.savefig('total_loss.png')
+
+        plt.clf()
         plt.plot(self.reconst_loss, label = "reconst_loss" )
         plt.plot(self.div_loss, label = 'div_loss')
         plt.plot(self.adv_sk, label = 'adv_sk')
+        plt.legend()
+        plt.savefig('sk_loss.png')
+        
+        plt.clf()
         plt.plot(self.adv_sd_real, label = 'adv_sd_real')
         plt.plot(self.adv_sd_fake, label = 'adv_sd_fake')
-
         plt.legend()
-
-        plt.savefig('loss.png')
+        plt.savefig('sd_loss.png')
+        
 
     def save_f_plot(self):
         plt.clf()

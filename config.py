@@ -1,8 +1,8 @@
-SD_lr = 0.002
-SK_lr = 0.001
+SD_lr = 0.0002
+SK_lr = 0.0001
 
 batch = 1  # this is fixed
-epoch = 4
+epoch = 50
 
 roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5', 'generated_data/ovp.h5','generated_data/youtube.h5']
 ratios = [0.0, 1.0, 1.0, 1.0]

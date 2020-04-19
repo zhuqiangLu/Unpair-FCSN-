@@ -232,21 +232,21 @@ class FCSN_MID(nn.Module):
 
         self.conv6 = nn.Sequential(
             nn.Conv1d(2048, 4096, 1),
-            nn.BatchNorm1d(4096),
+            nn.InstanceNorm1d(4096),
             nn.ReLU(inplace=True),
             nn.Dropout()
         )
 
         self.conv7 = nn.Sequential(
             nn.Conv1d(4096, 4096, 1),
-            nn.BatchNorm1d(4096),
+            nn.InstanceNorm1d(4096),
             nn.ReLU(inplace=True),
             nn.Dropout()
         )
 
         self.conv8 = nn.Sequential(  # the 1x1 cov layer
             nn.Conv1d(4096, n_class, 3, padding=1),
-            nn.BatchNorm1d(n_class),
+            nn.InstanceNorm1d(n_class),
             nn.ReLU(inplace=True),
 
         )
@@ -290,10 +290,11 @@ class FCSN(nn.Module):
 
         upscore = self.deconv1(h)
         
-        h = upscore + skip
+        
+        h = upscore[:,:,:skip.shape[-1]] + skip
         h = self.deconv2(h)
 
-        return h
+        return h[:,:,:x.shape[-1]]
 
 
 if __name__ == '__main__':

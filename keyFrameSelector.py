@@ -8,21 +8,22 @@ class SK(nn.Module):
         super(SK, self).__init__()
 
         self.ratio = ratio
-        self._SK = FCSN(n_class=n_class)  # backbone fcsn
+        self._FCSN = FCSN(n_class=1)  # backbone fcsn
 
-        #self.score_layer = nn.Sigmoid()  # to score the feature based on the decoded features
+        self.score_layer = nn.Sigmoid()  # to score the feature based on the decoded features
             
 
-        self.conv1 = nn.Conv1d(1, n_class, 3, padding=1)
+        self.conv1 = nn.Conv1d(1, 1024, 3, padding = 1)
+        self.conv2 = nn.Conv1d(1024, 1024, 3, padding = 1)
 
     def forward(self, x):
         video_features = x
 
         k = int(x.shape[2] * self.ratio)
 
-        sk_out = self._SK(x)
+        fcsn_out = self._FCSN(x)
 
-        scores=sk_out  # sk_out is the decoded features (1, 1, T)
+        scores = self.score_layer(fcsn_out)  # sk_out is the decoded features (1, 1, T)
 
         # scores = self.score_layer(h)  # shape (1,1,T)
         
@@ -37,26 +38,22 @@ class SK(nn.Module):
         
         high = top_scores.values[0, 0, 0]
         low = top_scores.values[0, 0, -1]
+        scores = torch.where(scores >= low, torch.ones(
+            scores.shape).to('cuda') , torch.zeros(scores.shape).to('cuda'))   # the 1/0 vector
+        topk = torch.sum(scores, dim=1)  # to remove the zeros rows
+        
+        picks = topk.nonzero(as_tuple=True)[1]  # all T that selected as S
         '''
             end
         '''
 
 
-        scores = torch.where(scores >= low, torch.ones(
-            scores.shape).to('cuda') , torch.zeros(scores.shape).to('cuda'))   # the 1/0 vector
-        h = (sk_out * scores)
-
-
         '''
             gether non-zeros vectors to form s
         '''
-        topk = torch.sum(h, dim=1)  # to remove the zeros rows
-        
-        picks = topk.nonzero(as_tuple=True)[1]  # all T that selected as S
-
-        h = self.conv1(h)
-        s = h + video_features
-        
+        h = (fcsn_out * scores)
+        h = self.conv1(fcsn_out) + (video_features * scores)
+        s = self.conv2(h)
         return s, picks
 
 

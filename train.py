@@ -21,14 +21,12 @@ class Trainer(object):
 
         self.SD = SD().to('cuda')
         self.opt_SD = optim.Adam(self.SD.parameters(), lr=config.SD_lr)
-        self.SD_losses = list()
         self.SD_scheduler = optim.lr_scheduler.StepLR(self.opt_SD, step_size=20, gamma=0.8)
 
 
 
         self.SK = SK().to('cuda')
         self.opt_SK = optim.Adam(self.SK.parameters(), lr=config.SK_lr)
-        self.SK_losses = list()
         self.SK_scheduler = optim.lr_scheduler.StepLR(self.opt_SK, step_size=20, gamma=0.8)
 
         self.crit_adv = nn.BCELoss()
@@ -75,34 +73,7 @@ class Trainer(object):
         label = Variable(torch.zeros(N, 1)).to("cuda")
         return label
 
-    def _run(self):
-        train_loader = self.factory.get_train_loaders()
-        dataset_pool = dict()
-        avail_data = len(train_loader)
-        
-        '''
-            train
-        '''
-        net = SK().to('cuda')
     
-    
-        opt= torch.optim.Adam(net.parameters(), lr=0.00001)
-
-        for i, batch in enumerate(train_loader):
-            v = batch[0].to(self.device)
-            s = batch[1].to(self.device)
-            gt = v
-            opt.zero_grad()
-            pred_sum, picks = net(v)
-            # self.opt_SK.zero_grad()
-            # self.SK.train()
-            #pred_sum, picks = self.SK(v)
-            reconst = self.crit_reconst(pred_sum[:,:,picks], v[:, :, picks].detach(),)
-            reconst.backward()
-            #self.opt_SK.step()
-            opt.step()
-            print(reconst,(gt-v).sum())
-            # print((gt-v).sum())
 
     def _train(self, v,s):
         '''
@@ -128,7 +99,8 @@ class Trainer(object):
 
         sd_loss_real = self.crit_adv(pred_real, self.real_label(s.shape[0]))
         sd_loss_real.backward()
-        self.adv_sd_real.append(sd_loss_real.item())
+
+        adv_sd_real_loss = sd_loss_real.item()
         self.opt_SD.step()
 
         pred_sum, picks = self.SK(v)
@@ -136,11 +108,12 @@ class Trainer(object):
 
         sd_loss_fake = self.crit_adv(pred_fake, self.fake_label(s.shape[0])) 
         sd_loss_fake.backward()
-        self.adv_sd_fake.append(sd_loss_fake.item())
+
+        adv_sd_fake_loss = sd_loss_fake.item()
         self.opt_SD.step()
 
         sd_loss = sd_loss_real + sd_loss_fake
-        self.SD_losses.append(sd_loss.item())
+        
 
         
         
@@ -161,24 +134,27 @@ class Trainer(object):
         #print(adv_sk_loss, reconst, div)
         sk_loss = adv_sk_loss + reconst  + div
         sk_loss.backward()
-        self.adv_sk.append( adv_sk_loss.item())
-        self.reconst_loss.append( reconst.item())
-        self.div_loss.append(div.item())
         self.opt_SK.step()
-        
-        self.SK_losses.append(sk_loss.item())
-        self.pred_fake.append( pred_fake.cpu().detach().numpy()[0,0])
-        self.pred_real.append( pred_real.cpu().detach().numpy()[0,0])
+
+        recosnt_loss = reconst.item()
+        adv_sk_loss = adv_sk_loss.item()
+        div_loss = div.item()
+
+        sd_pred_fake = pred_fake.cpu().detach().numpy()[0,0]
+        sd_pred_real = pred_real.cpu().detach().numpy()[0,0]
+
+        return adv_sd_real_loss,adv_sd_fake_loss,recosnt_loss,adv_sk_loss,div_loss,sd_pred_fake,sd_pred_real
+    
 
         
 
 
-    def eval(self, features, gt_seg_scores, cps, gt_picks, n_frame_per_seg, n_frame):
+    def eval(self, features, gt_scores, cps, gt_picks, n_frame_per_seg, n_frame):
         self.SK.eval()
 
         cps = cps.cpu().data.numpy()[0]
         gt_picks = gt_picks.cpu().data.numpy()[0]
-        gt_seg_scores = gt_seg_scores.cpu().data.numpy()[0]
+        gt_scores = gt_scores.cpu().data.numpu()[0]
         n_frame_per_seg = n_frame_per_seg.cpu().data.numpy()[0]
         
         _, picks = self.SK(features.to("cuda"))
@@ -189,6 +165,8 @@ class Trainer(object):
         
         pred_seg_scores = score_shot(
             cps, pred_scores, gt_picks, n_frame_per_seg)  # (n_cp, )
+        gt_seg_scores = score_shot(
+            cps, gt_scores, gt_picks, n_frame_per_seg)  # (n_cp, )
 
         # the length of the summary
         length = int(n_frame.cpu().data.numpy()[0] * 0.15)
@@ -200,7 +178,8 @@ class Trainer(object):
         return F
 
     def run(self):
-
+    
+        
         with trange(self.epoch, position=0) as epoches:
 
             for epoch in epoches:
@@ -213,52 +192,79 @@ class Trainer(object):
                 '''
                     train
                 '''
-                self.SD_scheduler.step()
-                self.SK_scheduler.step()
+                
                 for i, batch in enumerate(tqdm(train_loader, position = 1)):
                     v = batch[0].to(self.device)
                     s = batch[1].to(self.device)
 
-                    self._train(v, s)
-                    sd_loss = self.SD_losses[-1]
-                    sk_loss = self.SK_losses[-1]
-                    pred_fake = self.pred_fake[-1]
-                    pred_real = self.pred_real[-1]
+                    adv_sd_real_loss,adv_sd_fake_loss,recosnt_loss,adv_sk_loss,div_loss,sd_pred_fake,sd_pred_real = self._train(v, s)
+
+                    self.SD_scheduler.step()
+                    self.SK_scheduler.step()
+
+                    self.adv_sk.append(adv_sk_loss )
+                    self.reconst_loss.append( recosnt_loss)
+                    self.div_loss.append(div_loss)
+                    self.adv_sd_real.append(adv_sd_real_loss)
+                    self.adv_sd_fake.append(adv_sd_fake_loss)
+                    self.pred_fake.append( sd_pred_fake)
+                    self.pred_real.append( sd_pred_real)
+
+                    sd_loss = adv_sd_real_loss+adv_sd_fake_loss
+                    sk_loss = recosnt_loss+adv_sk_loss+div_loss
                     
-                    epoches.set_description('epoch {}, sd_loss {}, sk_loss {}, pred_fake {}, pred_real {}'.format(epoch, sd_loss, sk_loss, pred_fake, pred_real))
+                    
+                    epoches.set_description('epoch {}, sd_loss {}, sk_loss {}, pred_fake {}, pred_real {}'.format(epoch, sd_loss, sk_loss, sd_pred_fake, sd_pred_real))
                     # train sd with read sum
                 
                 '''
                     test
                 '''
 
+                
+
+
                 loaders = self.factory.get_test_loaders()
-                keys = list(loaders.keys())
-                for key in keys:
-                    if key not in self.f:
-                        self.f[key] = list()
+                # keys = list(loaders.keys())
+                # for key in keys:
+                #     if key not in self.f:
+                #         self.f[key] = list()
+                f_score = 0
+                for i, batch in enumerate(tqdm(loaders)):
+                    v = batch[0]
+                    s = batch[1]
+                    cps = batch[2]
+                    gtscore = batch[3]
+                    picks = batch[4]
+                    n_frame_per_seg = batch[5]
+                    n_frames = batch[6]
+                    f_score += self.eval(features, gt_seg_scores, cps, picks, n_frame_per_seg, n_frame)
+                    counter += 1
+                    
+                self.f[key].append(f_score/counter)
                     
                 
 
-                with trange(len(keys), position= 2) as idx:
+
+                # with trange(len(keys), position= 2) as idx:
             
                     
-                    for i in idx:
-                        key = keys[i]
-                        loader = loaders[key]
-                        f_score = 0
-                        counter = 0
-                        for j, video_info in enumerate(tqdm(loader)):
-                            features = video_info[0]
-                            gt_seg_scores = video_info[1]
-                            cps = video_info[2]
-                            picks = video_info[3]
-                            n_frame_per_seg = video_info[4]
-                            n_frame = video_info[5]
-                            f_score += self.eval(features, gt_seg_scores, cps, picks, n_frame_per_seg, n_frame)
-                            counter += 1
+                #     for i in idx:
+                #         key = keys[i]
+                #         loader = loaders[key]
+                #         f_score = 0
+                #         counter = 0
+                #         for j, video_info in enumerate(tqdm(loader)):
+                #             features = video_info[0]
+                #             gt_seg_scores = video_info[1]
+                #             cps = video_info[2]
+                #             picks = video_info[3]
+                #             n_frame_per_seg = video_info[4]
+                #             n_frame = video_info[5]
+                #             f_score += self.eval(features, gt_seg_scores, cps, picks, n_frame_per_seg, n_frame)
+                #             counter += 1
                             
-                        self.f[key].append(f_score/counter)
+                #         self.f[key].append(f_score/counter)
                         
 
         
@@ -280,12 +286,6 @@ class Trainer(object):
 
     
     def save_loss_plot(self):
-        plt.clf()
-        plt.plot(self.SK_losses, label = 'total_SK_loss')
-        plt.plot(self.SD_losses, label = 'total_SD_loss')
-        plt.legend()
-        plt.savefig('total_loss.png')
-
         plt.clf()
         plt.plot(self.reconst_loss, label = "reconst_loss" )
         plt.plot(self.div_loss, label = 'div_loss')

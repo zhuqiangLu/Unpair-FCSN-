@@ -8,25 +8,39 @@ class SD(nn.Module):
     def __init__(self):
         super(SD, self).__init__()
 
-        self.n_feature = 1024
+        
 
         self.up1 = nn.ConvTranspose1d(
-            self.n_feature, self.n_feature, 3, stride=3, padding=2, dilation=2,bias=False)
+            1024, 1024, 3, stride=3, padding=2, dilation=2,bias=False)
 
         self.up2 = nn.ConvTranspose1d(
-            self.n_feature, self.n_feature, 3, stride=3, padding=2, dilation=2,bias=False)
+            1024, 1024, 3, stride=3, padding=2, dilation=2,bias=False)
 
         self.up3 = nn.ConvTranspose1d(
-            self.n_feature, self.n_feature, 3, stride=3, padding=2, dilation=2,bias=False)
+            1024, 1024, 3, stride=3, padding=2, dilation=2,bias=False)
 
         self.enc = nn.Sequential(
             FCSN_ENC(),
-            FCSN_MID(n_class=self.n_feature)
+            FCSN_MID(n_class=1024),
+            nn.Conv1d(1024, 512, 3, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(512, 256, 3, padding=1),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(256, 128, 3, padding=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(128, 64, 3, padding=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(inplace=True),
+            
         )
+
         
         self.avgpool = nn.AvgPool1d(2, stride=2,ceil_mode=True)
         #self.fc = nn.Linear(self.n_feature, 1, bias=False)
-        self.fc = nn.Conv1d(self.n_feature, 1, 1)
+        self.fc = nn.Conv1d(64, 1, 1)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -39,11 +53,12 @@ class SD(nn.Module):
 
 
         h = self.up3(h)
-        #print(h.shape)
+        
 
         # h = self.up3(h)
        
         h = self.enc(h)
+        
         # h = self.deconv1(h)
         # h = self.deconv2(h)
         h = self.avgpool(h)

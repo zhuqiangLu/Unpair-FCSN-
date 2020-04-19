@@ -5,6 +5,48 @@ import h5py
 import random
 from utils import construct_S
 import numpy as np
+
+class SingleTrainData(Dataset):
+    def __init__(self, root):
+        self.root = root
+        self.data = h5py.File(root, 'r')
+        keys = list(self.data.keys())
+
+        self.V = random.sample(keys, int(len(keys)/2))
+        self.S = [s for s in keys if s not in self.V]
+        self.size = len(self.V)
+    
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, idx):
+        features = self.data[self.V[idx]]['features'][()]
+        summary = self.data[self.S[idx]]['summary'][()]
+        return features, summary
+
+class SingleTestData(Dataset):
+    def __init__(self, root):
+        self.root = root
+        self.data = h5py.File(root, 'r')
+        self.keys = list(self.data.keys())
+        
+    
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        features = self.data[self.keys[idx]]['features'][()]
+        summary = self.data[self.keys[idx]]['summary'][()]
+        cps = self.data[self.keys[idx]]['change_points'][()]
+        gtscores = self.data[self.keys[idx]]['gtsummary'][()]
+        picks = self.data[self.keys[idx]]['picks'][()]
+        n_frame_per_seg = self.data[self.keys[idx]]['n_frame_per_seg'][()]
+        n_frames = self.data[self.keys[idx]]['n_frames'][()]
+        
+
+        return features, summary,cps, gtscores, picks, n_frame_per_seg, n_frames
+
+
 class MultiTrainData(Dataset):
     def __init__(self, roots, video_sets):
         self.V = list()
@@ -99,6 +141,14 @@ class TestData(Dataset):
         n_frame = video['n_frame'][()]
         return features, gt_seg_scores, cps, picks, n_frame_per_seg, n_frame
 
+class SingleLoaderFactory():
+    def get_train_loaders(self):
+        root = 'generated_data/train_data.h5'
+        return DataLoader(SingleTrainData(root))
+
+    def get_test_loaders(self):
+        root = 'generated_data/test_data.h5'
+        return DataLoader(SingleTestData(root))
 
 class LoadersFactory():
     def __init__(self, paths, ratios):
@@ -138,6 +188,13 @@ class LoadersFactory():
         return loaders
 
 
+def test_single():
+    root = 'generated_data/test_data.h5'
+    loader = DataLoader(SingleTestData(root))
+    for i, batch in enumerate(loader):
+        print(i)
+        print(batch[0].shape)
+        print(batch[1].shape)
 if __name__ == "__main__":
     data_root = 'generated_data/summe.h5'
     # train_loader, test_dataset = get_dataloader(data_root, ratio=0.8)
@@ -169,10 +226,10 @@ if __name__ == "__main__":
     #     print(batch[0].shape)
     #     print(batch[1].shape)
 
-    roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5', 'generated_data/ovp.h5','generated_data/youtube.h5']
-    ratios = [0.0, 1.0, 1.0, 1.0]
-    factory = LoadersFactory(roots, ratios)
-    loaders = factory.get_train_loaders()
+    # roots = ['generated_data/summe.h5', 'generated_data/tvsum.h5', 'generated_data/ovp.h5','generated_data/youtube.h5']
+    # ratios = [0.0, 1.0, 1.0, 1.0]
+    # factory = LoadersFactory(roots, ratios)
+    # loaders = factory.get_train_loaders()
     # print(len(loaders))
     # print(loaders.keys())
     # for k, v in loaders.items():
@@ -182,16 +239,16 @@ if __name__ == "__main__":
     #         print(video_info[0].shape)
             
     # print(len(loader))
-    print(len(loaders))
+    # print(len(loaders))
     # from tqdm import tqdm
-    for i,batch in enumerate(loaders):
+    # for i,batch in enumerate(loaders):
         
         
-        print(batch[0].shape)
-        print(batch[1].shape)   
-        j = 0
+    #     print(batch[0].shape)
+    #     print(batch[1].shape)   
+    #     j = 0
 
-    # loaders = factory.get_test_loaders()
+    # # loaders = factory.get_test_loaders()
     # print(len(loaders))
     # print(loaders.keys())
     # for k, v in loaders.items():
@@ -199,6 +256,7 @@ if __name__ == "__main__":
     #     for i, video_info in enumerate(v):
     #         print(i)
     #         print(video_info[0].shape)
+    test_single()
 
 
     
